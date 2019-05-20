@@ -37,4 +37,13 @@ public class UnrecognizedInputFormatException extends ParserException {
     this.uri = uri;
   }
 
+  /**
+   * @param message The detail message for the exception.
+   * @param cause the cause of the exception
+   * @param uri The {@link Uri} from which the unrecognized data was read.
+   */
+  public UnrecognizedInputFormatException(String message, Throwable cause, Uri uri) {
+    super(message, cause);
+    this.uri = uri;
+  }
 }

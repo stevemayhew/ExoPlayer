@@ -300,7 +300,14 @@ import java.util.Collections;
           doSomeWork();
           break;
         case MSG_SEEK_TO:
-          seekToInternal((SeekPosition) msg.obj);
+          try {
+              seekToInternal((SeekPosition) msg.obj);
+          }
+          catch (IllegalSeekPositionException e) {
+              // Ignore this - so a seek fails.  No reason to completely
+              // terminate playback!
+              Log.e(TAG, "Seek failed: " + e);
+          }
           break;
         case MSG_SET_PLAYBACK_PARAMETERS:
           setPlaybackParametersInternal((PlaybackParameters) msg.obj);
@@ -315,7 +322,17 @@ import java.util.Collections;
           handlePeriodPrepared((MediaPeriod) msg.obj);
           break;
         case MSG_REFRESH_SOURCE_INFO:
-          handleSourceInfoRefreshed((MediaSourceRefreshInfo) msg.obj);
+          try {
+            handleSourceInfoRefreshed((MediaSourceRefreshInfo) msg.obj);
+          }
+          catch (IllegalSeekPositionException e) {
+            // Ignore this -- the illegal seek has already been handled by
+            // handleSourceInfoRefreshed by seeking back to the beginning of
+            // the timeline, so no need to do anything else here.  But do log
+            // it.
+            Log.e(TAG, "Illegal seek occurred during source info refresh, " +
+                  "position reset: " + e);
+          }
           break;
         case MSG_SOURCE_CONTINUE_LOADING_REQUESTED:
           handleContinueLoadingRequested((MediaPeriod) msg.obj);

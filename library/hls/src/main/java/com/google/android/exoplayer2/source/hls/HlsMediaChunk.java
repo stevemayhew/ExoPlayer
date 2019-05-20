@@ -25,8 +25,10 @@ import com.google.android.exoplayer2.extractor.ExtractorInput;
 import com.google.android.exoplayer2.metadata.Metadata;
 import com.google.android.exoplayer2.metadata.id3.Id3Decoder;
 import com.google.android.exoplayer2.metadata.id3.PrivFrame;
+import com.google.android.exoplayer2.ParserException;
 import com.google.android.exoplayer2.source.chunk.MediaChunk;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMasterPlaylist.HlsUrl;
+import com.google.android.exoplayer2.source.UnrecognizedInputFormatException;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DataSpec;
 import com.google.android.exoplayer2.util.ParsableByteArray;
@@ -211,7 +213,13 @@ import java.util.concurrent.atomic.AtomicInteger;
       try {
         int result = Extractor.RESULT_CONTINUE;
         while (result == Extractor.RESULT_CONTINUE && !loadCanceled) {
-          result = extractor.read(input, null);
+          try {
+            result = extractor.read(input, null);
+          }
+          catch (ParserException e) {
+              throw new UnrecognizedInputFormatException
+                  ("Initial data load failed", e, initSegmentDataSpec.uri);
+          }
         }
       } finally {
         initSegmentBytesLoaded = (int) (input.getPosition() - initDataSpec.absoluteStreamPosition);
@@ -250,7 +258,13 @@ import java.util.concurrent.atomic.AtomicInteger;
       try {
         int result = Extractor.RESULT_CONTINUE;
         while (result == Extractor.RESULT_CONTINUE && !loadCanceled) {
-          result = extractor.read(input, null);
+          try {
+            result = extractor.read(input, null);
+          }
+          catch (ParserException e) {
+              throw new UnrecognizedInputFormatException
+                  ("Initial data load failed", e, loadDataSpec.uri);
+          }
         }
       } finally {
         nextLoadPosition = (int) (input.getPosition() - dataSpec.absoluteStreamPosition);
