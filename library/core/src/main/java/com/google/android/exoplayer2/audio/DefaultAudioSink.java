@@ -767,7 +767,16 @@ public final class DefaultAudioSink implements AudioSink {
     lastFeedElapsedRealtimeMs = SystemClock.elapsedRealtime();
 
     if (bytesWritten < 0) {
-      throw new WriteException(bytesWritten);
+        if (bytesWritten == AudioTrack.ERROR_DEAD_OBJECT) {
+            // The AudioTrack being dead is something that presumably a higher
+            // level will deal with.  Here we just pretend like all the audio
+            // was played, in effect making audio played to a dead object just
+            // do nothing.
+            bytesWritten = bytesRemaining;
+        }
+        else {
+            throw new WriteException(bytesWritten);
+        }
     }
 
     if (isInputPcm) {
