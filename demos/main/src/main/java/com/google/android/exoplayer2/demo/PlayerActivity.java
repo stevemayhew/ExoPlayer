@@ -87,6 +87,7 @@ public class PlayerActivity extends AppCompatActivity
   public static final String DRM_KEY_REQUEST_PROPERTIES_EXTRA = "drm_key_request_properties";
   public static final String DRM_MULTI_SESSION_EXTRA = "drm_multi_session";
   public static final String PREFER_EXTENSION_DECODERS_EXTRA = "prefer_extension_decoders";
+  public static final String ENABLE_TUNNELED_PLAYBACK = "enable_tunneled_playback";
 
   public static final String ACTION_VIEW = "com.google.android.exoplayer.demo.action.VIEW";
   public static final String EXTENSION_EXTRA = "extension";
@@ -401,6 +402,16 @@ public class PlayerActivity extends AppCompatActivity
         return;
       }
 
+      boolean enableTunneling = intent.getBooleanExtra(ENABLE_TUNNELED_PLAYBACK, false);
+      // Get a builder with current parameters then set/clear tunnling based on the intent
+      //
+      android.content.Context context = getApplicationContext();
+      int tunnelingSessionId = enableTunneling
+              ? C.generateAudioSessionIdV21(context) : C.AUDIO_SESSION_ID_UNSET;
+
+      trackSelectorParameters = trackSelectorParameters.buildUpon()
+              .setTunnelingAudioSessionId(tunnelingSessionId)
+              .build();
       boolean preferExtensionDecoders =
           intent.getBooleanExtra(PREFER_EXTENSION_DECODERS_EXTRA, false);
       RenderersFactory renderersFactory =
