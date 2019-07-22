@@ -9,14 +9,16 @@ and extend, and can be updated through Play Store application updates.
 
 ## Documentation ##
 
+* TiVo -- See [contributing tivo][] for TiVo specific info.
 * The [developer guide][] provides a wealth of information.
 * The [class reference][] documents ExoPlayer classes.
 * The [release notes][] document the major changes in each release.
 * Follow our [developer blog][] to keep up to date with the latest ExoPlayer
   developments!
 
-[developer guide]: https://google.github.io/ExoPlayer/guide.html
-[class reference]: https://google.github.io/ExoPlayer/doc/reference
+[contributing tivo]: CONTRIBUTING-TIVO.md
+[developer guide]: https://exoplayer.dev/guide.html
+[class reference]: https://exoplayer.dev/doc/reference
 [release notes]: https://github.com/google/ExoPlayer/blob/release-v2/RELEASENOTES.md
 [developer blog]: https://medium.com/google-exoplayer
 
@@ -92,20 +94,6 @@ If not enabled already, you also need to turn on Java 8 support in all
 ```gradle
 compileOptions {
   targetCompatibility JavaVersion.VERSION_1_8
-}
-```
-
-Note that if you want to use Java 8 features in your own code, the following
-additional options need to be set:
-
-```gradle
-// For Java compilers:
-compileOptions {
-  sourceCompatibility JavaVersion.VERSION_1_8
-}
-// For Kotlin compilers:
-kotlinOptions {
-  jvmTarget = JavaVersion.VERSION_1_8
 }
 ```
 
