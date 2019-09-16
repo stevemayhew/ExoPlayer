@@ -33,14 +33,13 @@ The two principle branches in this private ExoPlayer repository are simply
 2. `dev`
 
 ### `release ` Branch ###
-`release` is the default branch, TiVo's Jenkins build for ExoPlayer will build and publish versioned artifacts from this branch.
+`release` is the branch for our shipping ExoPlayer code.  This branch requires a reviewed pull request in order to merge code to it. TiVo's Jenkins build for ExoPlayer will build and publish versioned artifacts from this branch.
 
-At any time this branch will be:
+At any time this branch will be based on a tagged ExoPlayer release from their [release-v2](https://github.com/google/ExoPlayer/tree/release-v2) branch (e.g. r2.9.6) plus:
 
-1. Based from a tagged ExoPlayer release (current is r2.9.6)
-2. Include two sets of changes from the tagged release:
-    - changes we are/have summited as pull request upstream
-    - local proprietary changes
+1. Changes for features or bug fixes we are/have summited as pull request upstream
+2. Cherry-picked bug fixes from their dev-v2 branch that we need before they release them
+3. local proprietary changes, in separate libraries or extensions
 
 ### `dev` Branch ###
 The `dev` branch tracks the latest stable branch of the ExoPlayer V2 development branch [ExoPlayer dev-v2](https://github.com/google/ExoPlayer/tree/dev-v2).  Specifically we will periodically test release candidate branches from dev-v2 (these follow the pattern, dev-v2-rx.y.z, eg: [dev-v2-r2.10.3](https://github.com/google/ExoPlayer/tree/dev-v2-r2.10.3)) and merge these into `development`.  Our goal is not to match their development (we are *not* doing ExoPlayer development), but simply to pick up bug fixes earlier then their release branch.
