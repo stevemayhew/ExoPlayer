@@ -16,8 +16,8 @@
 package com.google.android.exoplayer2.ext.cast;
 
 import android.os.Looper;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.BasePlayer;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
@@ -45,41 +45,27 @@ import com.google.android.gms.cast.framework.media.RemoteMediaClient;
 import com.google.android.gms.cast.framework.media.RemoteMediaClient.MediaChannelResult;
 import com.google.android.gms.common.api.PendingResult;
 import com.google.android.gms.common.api.ResultCallback;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * {@link Player} implementation that communicates with a Cast receiver app.
  *
  * <p>The behavior of this class depends on the underlying Cast session, which is obtained from the
- * Cast context passed to {@link #CastPlayer}. To keep track of the session,
- * {@link #isCastSessionAvailable()} can be queried and {@link SessionAvailabilityListener} can be
- * implemented and attached to the player.</p>
+ * Cast context passed to {@link #CastPlayer}. To keep track of the session, {@link
+ * #isCastSessionAvailable()} can be queried and {@link SessionAvailabilityListener} can be
+ * implemented and attached to the player.
  *
- * <p> If no session is available, the player state will remain unchanged and calls to methods that
+ * <p>If no session is available, the player state will remain unchanged and calls to methods that
  * alter it will be ignored. Querying the player state is possible even when no session is
- * available, in which case, the last observed receiver app state is reported.</p>
+ * available, in which case, the last observed receiver app state is reported.
  *
- * <p>Methods should be called on the application's main thread.</p>
+ * <p>Methods should be called on the application's main thread.
  */
 public final class CastPlayer extends BasePlayer {
-
-  /**
-   * Listener of changes in the cast session availability.
-   */
-  public interface SessionAvailabilityListener {
-
-    /**
-     * Called when a cast session becomes available to the player.
-     */
-    void onCastSessionAvailable();
-
-    /**
-     * Called when the cast session becomes unavailable.
-     */
-    void onCastSessionUnavailable();
-
-  }
 
   private static final String TAG = "CastPlayer";
 
@@ -103,8 +89,10 @@ public final class CastPlayer extends BasePlayer {
   private final StatusListener statusListener;
   private final SeekResultCallback seekResultCallback;
 
-  // Listeners.
-  private final CopyOnWriteArraySet<EventListener> listeners;
+  // Listeners and notification.
+  private final CopyOnWriteArrayList<ListenerHolder> listeners;
+  private final ArrayList<ListenerNotificationTask> notificationsBatch;
+  private final ArrayDeque<ListenerNotificationTask> ongoingNotificationsTasks;
   private SessionAvailabilityListener sessionAvailabilityListener;
 
   // Internal state.
@@ -130,7 +118,9 @@ public final class CastPlayer extends BasePlayer {
     period = new Timeline.Period();
     statusListener = new StatusListener();
     seekResultCallback = new SeekResultCallback();
-    listeners = new CopyOnWriteArraySet<>();
+    listeners = new CopyOnWriteArrayList<>();
+    notificationsBatch = new ArrayList<>();
+    ongoingNotificationsTasks = new ArrayDeque<>();
 
     SessionManager sessionManager = castContext.getSessionManager();
     sessionManager.addSessionManagerListener(statusListener, CastSession.class);
@@ -313,12 +303,17 @@ public final class CastPlayer extends BasePlayer {
 
   @Override
   public void addListener(EventListener listener) {
-    listeners.add(listener);
+    listeners.addIfAbsent(new ListenerHolder(listener));
   }
 
   @Override
   public void removeListener(EventListener listener) {
-    listeners.remove(listener);
+    for (ListenerHolder listenerHolder : listeners) {
+      if (listenerHolder.listener.equals(listener)) {
+        listenerHolder.release();
+        listeners.remove(listenerHolder);
+      }
+    }
   }
 
   @Override
@@ -364,14 +359,13 @@ public final class CastPlayer extends BasePlayer {
       pendingSeekCount++;
       pendingSeekWindowIndex = windowIndex;
       pendingSeekPositionMs = positionMs;
-      for (EventListener listener : listeners) {
-        listener.onPositionDiscontinuity(Player.DISCONTINUITY_REASON_SEEK);
-      }
+      notificationsBatch.add(
+          new ListenerNotificationTask(
+              listener -> listener.onPositionDiscontinuity(DISCONTINUITY_REASON_SEEK)));
     } else if (pendingSeekCount == 0) {
-      for (EventListener listener : listeners) {
-        listener.onSeekProcessed();
-      }
+      notificationsBatch.add(new ListenerNotificationTask(EventListener::onSeekProcessed));
     }
+    flushNotifications();
   }
 
   @Override
@@ -547,30 +541,40 @@ public final class CastPlayer extends BasePlayer {
         || this.playWhenReady != playWhenReady) {
       this.playbackState = playbackState;
       this.playWhenReady = playWhenReady;
-      for (EventListener listener : listeners) {
-        listener.onPlayerStateChanged(this.playWhenReady, this.playbackState);
-      }
+      notificationsBatch.add(
+          new ListenerNotificationTask(
+              listener -> listener.onPlayerStateChanged(this.playWhenReady, this.playbackState)));
     }
     @RepeatMode int repeatMode = fetchRepeatMode(remoteMediaClient);
     if (this.repeatMode != repeatMode) {
       this.repeatMode = repeatMode;
-      for (EventListener listener : listeners) {
-        listener.onRepeatModeChanged(repeatMode);
-      }
-    }
-    int currentWindowIndex = fetchCurrentWindowIndex(getMediaStatus());
-    if (this.currentWindowIndex != currentWindowIndex && pendingSeekCount == 0) {
-      this.currentWindowIndex = currentWindowIndex;
-      for (EventListener listener : listeners) {
-        listener.onPositionDiscontinuity(DISCONTINUITY_REASON_PERIOD_TRANSITION);
-      }
-    }
-    if (updateTracksAndSelections()) {
-      for (EventListener listener : listeners) {
-        listener.onTracksChanged(currentTrackGroups, currentTrackSelection);
-      }
+      notificationsBatch.add(
+          new ListenerNotificationTask(listener -> listener.onRepeatModeChanged(this.repeatMode)));
     }
     maybeUpdateTimelineAndNotify();
+
+    int currentWindowIndex = C.INDEX_UNSET;
+    MediaQueueItem currentItem = remoteMediaClient.getCurrentItem();
+    if (currentItem != null) {
+      currentWindowIndex = currentTimeline.getIndexOfPeriod(currentItem.getItemId());
+    }
+    if (currentWindowIndex == C.INDEX_UNSET) {
+      // The timeline is empty. Fall back to index 0, which is what ExoPlayer would do.
+      currentWindowIndex = 0;
+    }
+    if (this.currentWindowIndex != currentWindowIndex && pendingSeekCount == 0) {
+      this.currentWindowIndex = currentWindowIndex;
+      notificationsBatch.add(
+          new ListenerNotificationTask(
+              listener ->
+                  listener.onPositionDiscontinuity(DISCONTINUITY_REASON_PERIOD_TRANSITION)));
+    }
+    if (updateTracksAndSelections()) {
+      notificationsBatch.add(
+          new ListenerNotificationTask(
+              listener -> listener.onTracksChanged(currentTrackGroups, currentTrackSelection)));
+    }
+    flushNotifications();
   }
 
   private void maybeUpdateTimelineAndNotify() {
@@ -578,9 +582,10 @@ public final class CastPlayer extends BasePlayer {
       @Player.TimelineChangeReason int reason = waitingForInitialTimeline
           ? Player.TIMELINE_CHANGE_REASON_PREPARED : Player.TIMELINE_CHANGE_REASON_DYNAMIC;
       waitingForInitialTimeline = false;
-      for (EventListener listener : listeners) {
-        listener.onTimelineChanged(currentTimeline, null, reason);
-      }
+      notificationsBatch.add(
+          new ListenerNotificationTask(
+              listener ->
+                  listener.onTimelineChanged(currentTimeline, /* manifest= */ null, reason)));
     }
   }
 
@@ -591,7 +596,9 @@ public final class CastPlayer extends BasePlayer {
     CastTimeline oldTimeline = currentTimeline;
     MediaStatus status = getMediaStatus();
     currentTimeline =
-        status != null ? timelineTracker.getCastTimeline(status) : CastTimeline.EMPTY_CAST_TIMELINE;
+        status != null
+            ? timelineTracker.getCastTimeline(remoteMediaClient)
+            : CastTimeline.EMPTY_CAST_TIMELINE;
     return !oldTimeline.equals(currentTimeline);
   }
 
@@ -716,16 +723,6 @@ public final class CastPlayer extends BasePlayer {
     }
   }
 
-  /**
-   * Retrieves the current item index from {@code mediaStatus} and maps it into a window index. If
-   * there is no media session, returns 0.
-   */
-  private static int fetchCurrentWindowIndex(@Nullable MediaStatus mediaStatus) {
-    Integer currentItemId = mediaStatus != null
-        ? mediaStatus.getIndexById(mediaStatus.getCurrentItemId()) : null;
-    return currentItemId != null ? currentItemId : 0;
-  }
-
   private static boolean isTrackActive(long id, long[] activeTrackIds) {
     for (long activeTrackId : activeTrackIds) {
       if (activeTrackId == id) {
@@ -841,7 +838,23 @@ public final class CastPlayer extends BasePlayer {
 
   }
 
-  // Result callbacks hooks.
+  // Internal methods.
+
+  private void flushNotifications() {
+    boolean recursiveNotification = !ongoingNotificationsTasks.isEmpty();
+    ongoingNotificationsTasks.addAll(notificationsBatch);
+    notificationsBatch.clear();
+    if (recursiveNotification) {
+      // This will be handled once the current notification task is finished.
+      return;
+    }
+    while (!ongoingNotificationsTasks.isEmpty()) {
+      ongoingNotificationsTasks.peekFirst().execute();
+      ongoingNotificationsTasks.removeFirst();
+    }
+  }
+
+  // Internal classes.
 
   private final class SeekResultCallback implements ResultCallback<MediaChannelResult> {
 
@@ -855,9 +868,25 @@ public final class CastPlayer extends BasePlayer {
       if (--pendingSeekCount == 0) {
         pendingSeekWindowIndex = C.INDEX_UNSET;
         pendingSeekPositionMs = C.TIME_UNSET;
-        for (EventListener listener : listeners) {
-          listener.onSeekProcessed();
-        }
+        notificationsBatch.add(new ListenerNotificationTask(EventListener::onSeekProcessed));
+        flushNotifications();
+      }
+    }
+  }
+
+  private final class ListenerNotificationTask {
+
+    private final Iterator<ListenerHolder> listenersSnapshot;
+    private final ListenerInvocation listenerInvocation;
+
+    private ListenerNotificationTask(ListenerInvocation listenerInvocation) {
+      this.listenersSnapshot = listeners.iterator();
+      this.listenerInvocation = listenerInvocation;
+    }
+
+    public void execute() {
+      while (listenersSnapshot.hasNext()) {
+        listenersSnapshot.next().invoke(listenerInvocation);
       }
     }
   }

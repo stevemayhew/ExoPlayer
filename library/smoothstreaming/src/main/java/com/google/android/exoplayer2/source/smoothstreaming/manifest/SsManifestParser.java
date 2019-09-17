@@ -586,6 +586,7 @@ public class SsManifestParser implements ParsingLoadable.Parser<SsManifest> {
       } else {
         subType = parser.getAttributeValue(null, KEY_SUB_TYPE);
       }
+      putNormalizedAttribute(KEY_SUB_TYPE, subType);
       name = parser.getAttributeValue(null, KEY_NAME);
       url = parseRequiredString(parser, KEY_URL);
       maxWidth = parseInt(parser, KEY_MAX_WIDTH, Format.NO_VALUE);
@@ -645,6 +646,7 @@ public class SsManifestParser implements ParsingLoadable.Parser<SsManifest> {
     private static final String KEY_CHANNELS = "Channels";
     private static final String KEY_FOUR_CC = "FourCC";
     private static final String KEY_TYPE = "Type";
+    private static final String KEY_SUB_TYPE = "Subtype";
     private static final String KEY_LANGUAGE = "Language";
     private static final String KEY_NAME = "Name";
     private static final String KEY_MAX_WIDTH = "MaxWidth";
@@ -681,7 +683,8 @@ public class SsManifestParser implements ParsingLoadable.Parser<SsManifest> {
                 height,
                 /* frameRate= */ Format.NO_VALUE,
                 codecSpecificData,
-                /* selectionFlags= */ 0);
+                /* selectionFlags= */ 0,
+                /* roleFlags= */ 0);
       } else if (type == C.TRACK_TYPE_AUDIO) {
         sampleMimeType = sampleMimeType == null ? MimeTypes.AUDIO_AAC : sampleMimeType;
         int channels = parseRequiredInt(parser, KEY_CHANNELS);
@@ -705,8 +708,21 @@ public class SsManifestParser implements ParsingLoadable.Parser<SsManifest> {
                 samplingRate,
                 codecSpecificData,
                 /* selectionFlags= */ 0,
+                /* roleFlags= */ 0,
                 language);
       } else if (type == C.TRACK_TYPE_TEXT) {
+        String subType = (String) getNormalizedAttribute(KEY_SUB_TYPE);
+        @C.RoleFlags int roleFlags = 0;
+        switch (subType) {
+          case "CAPT":
+            roleFlags = C.ROLE_FLAG_CAPTION;
+            break;
+          case "DESC":
+            roleFlags = C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND;
+            break;
+          default:
+            break;
+        }
         String language = (String) getNormalizedAttribute(KEY_LANGUAGE);
         format =
             Format.createTextContainerFormat(
@@ -717,6 +733,7 @@ public class SsManifestParser implements ParsingLoadable.Parser<SsManifest> {
                 /* codecs= */ null,
                 bitrate,
                 /* selectionFlags= */ 0,
+                roleFlags,
                 language);
       } else {
         format =
@@ -728,6 +745,7 @@ public class SsManifestParser implements ParsingLoadable.Parser<SsManifest> {
                 /* codecs= */ null,
                 bitrate,
                 /* selectionFlags= */ 0,
+                /* roleFlags= */ 0,
                 /* language= */ null);
       }
     }

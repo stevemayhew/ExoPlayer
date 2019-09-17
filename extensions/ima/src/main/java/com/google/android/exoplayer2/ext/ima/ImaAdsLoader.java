@@ -19,8 +19,9 @@ import android.content.Context;
 import android.net.Uri;
 import android.os.Looper;
 import android.os.SystemClock;
-import android.support.annotation.IntDef;
-import android.support.annotation.Nullable;
+import androidx.annotation.IntDef;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 import android.view.View;
 import android.view.ViewGroup;
 import com.google.ads.interactivemedia.v3.api.Ad;
@@ -216,7 +217,7 @@ public final class ImaAdsLoader
       return this;
     }
 
-    // @VisibleForTesting
+    @VisibleForTesting
     /* package */ Builder setImaFactory(ImaFactory imaFactory) {
       this.imaFactory = Assertions.checkNotNull(imaFactory);
       return this;
@@ -755,7 +756,8 @@ public final class ImaAdsLoader
       // until MAXIMUM_PRELOAD_DURATION_MS before the ad so that an ad group load error delivered
       // just after an ad group isn't incorrectly attributed to the next ad group.
       int nextAdGroupIndex =
-          adPlaybackState.getAdGroupIndexAfterPositionUs(C.msToUs(contentPositionMs));
+          adPlaybackState.getAdGroupIndexAfterPositionUs(
+              C.msToUs(contentPositionMs), C.msToUs(contentDurationMs));
       if (nextAdGroupIndex != expectedAdGroupIndex && nextAdGroupIndex != C.INDEX_UNSET) {
         long nextAdGroupTimeMs = C.usToMs(adPlaybackState.adGroupTimesUs[nextAdGroupIndex]);
         if (nextAdGroupTimeMs == C.TIME_END_OF_SOURCE) {
@@ -946,8 +948,8 @@ public final class ImaAdsLoader
   @Override
   public void onTimelineChanged(
       Timeline timeline, @Nullable Object manifest, @Player.TimelineChangeReason int reason) {
-    if (reason == Player.TIMELINE_CHANGE_REASON_RESET) {
-      // The player is being reset and this source will be released.
+    if (timeline.isEmpty()) {
+      // The player is being reset or contains no media.
       return;
     }
     Assertions.checkArgument(timeline.getPeriodCount() == 1);
@@ -1052,13 +1054,8 @@ public final class ImaAdsLoader
     long contentPositionMs = player.getCurrentPosition();
     int adGroupIndexForPosition =
         adPlaybackState.getAdGroupIndexForPositionUs(C.msToUs(contentPositionMs));
-    if (adGroupIndexForPosition == 0) {
-      podIndexOffset = 0;
-    } else if (adGroupIndexForPosition == C.INDEX_UNSET) {
-      // There is no preroll and midroll pod indices start at 1.
-      podIndexOffset = -1;
-    } else /* adGroupIndexForPosition > 0 */ {
-      // Skip ad groups before the one at or immediately before the playback position.
+    if (adGroupIndexForPosition > 0 && adGroupIndexForPosition != C.INDEX_UNSET) {
+      // Skip any ad groups before the one at or immediately before the playback position.
       for (int i = 0; i < adGroupIndexForPosition; i++) {
         adPlaybackState = adPlaybackState.withSkippedAdGroup(i);
       }
@@ -1068,9 +1065,18 @@ public final class ImaAdsLoader
       long adGroupBeforeTimeUs = adGroupTimesUs[adGroupIndexForPosition - 1];
       double midpointTimeUs = (adGroupForPositionTimeUs + adGroupBeforeTimeUs) / 2d;
       adsRenderingSettings.setPlayAdsAfterTime(midpointTimeUs / C.MICROS_PER_SECOND);
+    }
 
-      // We're removing one or more ads, which means that the earliest ad (if any) will be a
-      // midroll/postroll. Midroll pod indices start at 1.
+    // IMA indexes any remaining midroll ad pods from 1. A preroll (if present) has index 0.
+    // Store an index offset as we want to index all ads (including skipped ones) from 0.
+    if (adGroupIndexForPosition == 0 && adGroupTimesUs[0] == 0) {
+      // We are playing a preroll.
+      podIndexOffset = 0;
+    } else if (adGroupIndexForPosition == C.INDEX_UNSET) {
+      // There's no ad to play which means there's no preroll.
+      podIndexOffset = -1;
+    } else {
+      // We are playing a midroll and any ads before it were skipped.
       podIndexOffset = adGroupIndexForPosition - 1;
     }
 
@@ -1389,7 +1395,7 @@ public final class ImaAdsLoader
   }
 
   /** Factory for objects provided by the IMA SDK. */
-  // @VisibleForTesting
+  @VisibleForTesting
   /* package */ interface ImaFactory {
     /** @see ImaSdkSettings */
     ImaSdkSettings createImaSdkSettings();
