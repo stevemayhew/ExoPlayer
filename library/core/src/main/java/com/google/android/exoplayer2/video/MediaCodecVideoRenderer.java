@@ -1601,35 +1601,18 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
   private final class OnFrameRenderedListenerV23 implements MediaCodec.OnFrameRenderedListener {
 
     private OnFrameRenderedListenerV23(MediaCodec codec) {
-      // Create a new Handler to ensure that callbacks into the renderer
-      // are made from the appropriate thread, which is the thread which
-      // created this instance
-      mHandler = new Handler();
-      codec.setOnFrameRenderedListener(this, mHandler);
+      codec.setOnFrameRenderedListener(this, new Handler());
     }
 
     @Override
-    public void onFrameRendered(@NonNull MediaCodec codec, final long presentationTimeUs, long nanoTime) {
-        // MediaCodec calls this callback while holding locks that can
-        // deadlock if you do anything with the codec directly from this
-        // callback, so defer the handling to a Runnable which will not hold
-        // any locks while calling onProcessedTunneledBuffer, thus avoiding
-        // deadlocks.
-        final OnFrameRenderedListenerV23 thisListener = this;
-        mHandler.post(new Runnable()
-        {
-          public void run()
-          {
-            // This races but the Exo code is implemented this way and it is
-            // assumed that delivery of a rare stale event is OK
-            if (thisListener == tunnelingOnFrameRenderedListener) {
-              onProcessedTunneledBuffer(presentationTimeUs);
-            }
-            // Else stale event
-          }
-        });
+    public void onFrameRendered(@NonNull MediaCodec codec, long presentationTimeUs, long nanoTime) {
+      if (this != tunnelingOnFrameRenderedListener) {
+        // Stale event.
+        return;
+      }
+      onProcessedTunneledBuffer(presentationTimeUs);
     }
-      
-    private Handler mHandler;
+
   }
+
 }
