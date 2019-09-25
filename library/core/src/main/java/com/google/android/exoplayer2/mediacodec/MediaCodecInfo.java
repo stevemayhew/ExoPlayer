@@ -22,7 +22,7 @@ import android.media.MediaCodecInfo.AudioCapabilities;
 import android.media.MediaCodecInfo.CodecCapabilities;
 import android.media.MediaCodecInfo.CodecProfileLevel;
 import android.media.MediaCodecInfo.VideoCapabilities;
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 import android.util.Pair;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.util.Assertions;
@@ -31,7 +31,6 @@ import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.Util;
 
 /** Information about a {@link MediaCodec} for a given mime type. */
-@TargetApi(16)
 @SuppressWarnings("InlinedApi")
 public final class MediaCodecInfo {
 
@@ -251,8 +250,8 @@ public final class MediaCodecInfo {
     int profile = codecProfileAndLevel.first;
     int level = codecProfileAndLevel.second;
     if (!isVideo && profile != CodecProfileLevel.AACObjectXHE) {
-      // Some devices/builds under-report audio capabilities, so assume support except for xHE-AAC
-      // which is not widely supported. See https://github.com/google/ExoPlayer/issues/5145.
+      // Some devices/builds underreport audio capabilities, so assume support except for xHE-AAC
+      // which may not be widely supported. See https://github.com/google/ExoPlayer/issues/5145.
       return true;
     }
     for (CodecProfileLevel capabilities : getProfileLevels()) {
@@ -519,9 +518,15 @@ public final class MediaCodecInfo {
   @TargetApi(21)
   private static boolean areSizeAndRateSupportedV21(VideoCapabilities capabilities, int width,
       int height, double frameRate) {
-    return frameRate == Format.NO_VALUE || frameRate <= 0
-        ? capabilities.isSizeSupported(width, height)
-        : capabilities.areSizeAndRateSupported(width, height, frameRate);
+    if (frameRate == Format.NO_VALUE || frameRate <= 0) {
+      return capabilities.isSizeSupported(width, height);
+    } else {
+      // The signaled frame rate may be slightly higher than the actual frame rate, so we take the
+      // floor to avoid situations where a range check in areSizeAndRateSupported fails due to
+      // slightly exceeding the limits for a standard format (e.g., 1080p at 30 fps).
+      double floorFrameRate = Math.floor(frameRate);
+      return capabilities.areSizeAndRateSupported(width, height, floorFrameRate);
+    }
   }
 
   @TargetApi(23)

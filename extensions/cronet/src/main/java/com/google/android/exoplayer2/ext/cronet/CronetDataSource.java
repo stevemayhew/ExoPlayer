@@ -16,10 +16,11 @@
 package com.google.android.exoplayer2.ext.cronet;
 
 import android.net.Uri;
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 import android.text.TextUtils;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlayerLibraryInfo;
+import com.google.android.exoplayer2.metadata.icy.IcyHeaders;
 import com.google.android.exoplayer2.upstream.BaseDataSource;
 import com.google.android.exoplayer2.upstream.DataSourceException;
 import com.google.android.exoplayer2.upstream.DataSpec;
@@ -112,7 +113,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
 
   private final CronetEngine cronetEngine;
   private final Executor executor;
-  private final Predicate<String> contentTypePredicate;
+  @Nullable private final Predicate<String> contentTypePredicate;
   private final int connectTimeoutMs;
   private final int readTimeoutMs;
   private final boolean resetTimeoutOnRedirects;
@@ -152,12 +153,26 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
    *     hop from Cronet's internal network thread to the response handling thread. However, to
    *     avoid slowing down overall network performance, care must be taken to make sure response
    *     handling is a fast operation when using a direct executor.
+   */
+  public CronetDataSource(CronetEngine cronetEngine, Executor executor) {
+    this(cronetEngine, executor, /* contentTypePredicate= */ null);
+  }
+
+  /**
+   * @param cronetEngine A CronetEngine.
+   * @param executor The {@link java.util.concurrent.Executor} that will handle responses. This may
+   *     be a direct executor (i.e. executes tasks on the calling thread) in order to avoid a thread
+   *     hop from Cronet's internal network thread to the response handling thread. However, to
+   *     avoid slowing down overall network performance, care must be taken to make sure response
+   *     handling is a fast operation when using a direct executor.
    * @param contentTypePredicate An optional {@link Predicate}. If a content type is rejected by the
    *     predicate then an {@link InvalidContentTypeException} is thrown from {@link
    *     #open(DataSpec)}.
    */
   public CronetDataSource(
-      CronetEngine cronetEngine, Executor executor, Predicate<String> contentTypePredicate) {
+      CronetEngine cronetEngine,
+      Executor executor,
+      @Nullable Predicate<String> contentTypePredicate) {
     this(
         cronetEngine,
         executor,
@@ -187,7 +202,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
   public CronetDataSource(
       CronetEngine cronetEngine,
       Executor executor,
-      Predicate<String> contentTypePredicate,
+      @Nullable Predicate<String> contentTypePredicate,
       int connectTimeoutMs,
       int readTimeoutMs,
       boolean resetTimeoutOnRedirects,
@@ -224,7 +239,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
   public CronetDataSource(
       CronetEngine cronetEngine,
       Executor executor,
-      Predicate<String> contentTypePredicate,
+      @Nullable Predicate<String> contentTypePredicate,
       int connectTimeoutMs,
       int readTimeoutMs,
       boolean resetTimeoutOnRedirects,
@@ -245,7 +260,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
   /* package */ CronetDataSource(
       CronetEngine cronetEngine,
       Executor executor,
-      Predicate<String> contentTypePredicate,
+      @Nullable Predicate<String> contentTypePredicate,
       int connectTimeoutMs,
       int readTimeoutMs,
       boolean resetTimeoutOnRedirects,
@@ -492,6 +507,11 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
     }
     if (dataSpec.httpBody != null && !isContentTypeHeaderSet) {
       throw new IOException("HTTP request with non-empty body must set Content-Type");
+    }
+    if (dataSpec.isFlagSet(DataSpec.FLAG_ALLOW_ICY_METADATA)) {
+      requestBuilder.addHeader(
+          IcyHeaders.REQUEST_HEADER_ENABLE_METADATA_NAME,
+          IcyHeaders.REQUEST_HEADER_ENABLE_METADATA_VALUE);
     }
     // Set the Range header.
     if (dataSpec.position != 0 || dataSpec.length != C.LENGTH_UNSET) {

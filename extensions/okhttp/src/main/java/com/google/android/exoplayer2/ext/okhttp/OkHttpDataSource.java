@@ -18,9 +18,10 @@ package com.google.android.exoplayer2.ext.okhttp;
 import static com.google.android.exoplayer2.util.Util.castNonNull;
 
 import android.net.Uri;
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlayerLibraryInfo;
+import com.google.android.exoplayer2.metadata.icy.IcyHeaders;
 import com.google.android.exoplayer2.upstream.BaseDataSource;
 import com.google.android.exoplayer2.upstream.DataSourceException;
 import com.google.android.exoplayer2.upstream.DataSpec;
@@ -71,6 +72,15 @@ public class OkHttpDataSource extends BaseDataSource implements HttpDataSource {
 
   private long bytesSkipped;
   private long bytesRead;
+
+  /**
+   * @param callFactory A {@link Call.Factory} (typically an {@link okhttp3.OkHttpClient}) for use
+   *     by the source.
+   * @param userAgent An optional User-Agent string.
+   */
+  public OkHttpDataSource(Call.Factory callFactory, @Nullable String userAgent) {
+    this(callFactory, userAgent, /* contentTypePredicate= */ null);
+  }
 
   /**
    * @param callFactory A {@link Call.Factory} (typically an {@link okhttp3.OkHttpClient}) for use
@@ -263,7 +273,6 @@ public class OkHttpDataSource extends BaseDataSource implements HttpDataSource {
   private Request makeRequest(DataSpec dataSpec) throws HttpDataSourceException {
     long position = dataSpec.position;
     long length = dataSpec.length;
-    boolean allowGzip = dataSpec.isFlagSet(DataSpec.FLAG_ALLOW_GZIP);
 
     HttpUrl url = HttpUrl.parse(dataSpec.uri.toString());
     if (url == null) {
@@ -293,9 +302,13 @@ public class OkHttpDataSource extends BaseDataSource implements HttpDataSource {
     if (userAgent != null) {
       builder.addHeader("User-Agent", userAgent);
     }
-
-    if (!allowGzip) {
+    if (!dataSpec.isFlagSet(DataSpec.FLAG_ALLOW_GZIP)) {
       builder.addHeader("Accept-Encoding", "identity");
+    }
+    if (dataSpec.isFlagSet(DataSpec.FLAG_ALLOW_ICY_METADATA)) {
+      builder.addHeader(
+          IcyHeaders.REQUEST_HEADER_ENABLE_METADATA_NAME,
+          IcyHeaders.REQUEST_HEADER_ENABLE_METADATA_VALUE);
     }
     RequestBody requestBody = null;
     if (dataSpec.httpBody != null) {

@@ -1,5 +1,6 @@
 # How to contribute #
 
+See [CONTRIBUTING-TIVO](CONTRIBUTING-TIVO.md)
 ## Reporting issues ##
 
 We use the [GitHub issue tracker](https://github.com/google/ExoPlayer/issues)
