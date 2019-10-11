@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+  This is the top level root container for the ViewActivity, simply a FrameLayout with the
+  PlayerView as the only child with no padding and match parent.
+
+  So it presents no layout other then what is in the PlayerView itself.
+
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:keepScreenOn="true">
+
+
+
+  <com.google.android.exoplayer2.ui.PlayerView android:id="@+id/player_view"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+    />
+
+</FrameLayout>

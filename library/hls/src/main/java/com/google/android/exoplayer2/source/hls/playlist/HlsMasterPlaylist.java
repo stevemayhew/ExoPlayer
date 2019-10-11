@@ -35,6 +35,7 @@ public final class HlsMasterPlaylist extends HlsPlaylist {
           /* baseUri= */ "",
           /* tags= */ Collections.emptyList(),
           /* variants= */ Collections.emptyList(),
+          /* iframes= */ Collections.emptyList(),
           /* videos= */ Collections.emptyList(),
           /* audios= */ Collections.emptyList(),
           /* subtitles= */ Collections.emptyList(),
@@ -92,6 +93,28 @@ public final class HlsMasterPlaylist extends HlsPlaylist {
       this.audioGroupId = audioGroupId;
       this.subtitleGroupId = subtitleGroupId;
       this.captionGroupId = captionGroupId;
+    }
+
+    /**
+     * Construct a Variant with only an (optional) video Rendition (for example, EXT-X-I-FRAME-STREAM-INF
+     * only allows alternate VIDEO Renditions, these are suggested if the non-Iframe Variant includes
+     * alternate video Rendition but not required)
+     *
+     * @param url See {@link #url}.
+     * @param format See {@link #format}.
+     * @param videoGroupId See {@link #videoGroupId}.
+     */
+    public Variant(
+        Uri url,
+        Format format,
+        @Nullable String videoGroupId) {
+      this(
+          url,
+          format,
+          videoGroupId,
+          /* audioGroupId */null,
+          /* subtitleGroupId */null,
+          /* captionGroupId */null);
     }
 
     /**
@@ -161,6 +184,8 @@ public final class HlsMasterPlaylist extends HlsPlaylist {
   public final List<Uri> mediaPlaylistUrls;
   /** The variants declared by the playlist. */
   public final List<Variant> variants;
+  /** The IFrame only playlist declared by the playlist, if any. */
+  public final List<Variant> iFrameVariants;
   /** The video renditions declared by the playlist. */
   public final List<Rendition> videos;
   /** The audio renditions declared by the playlist. */
@@ -190,6 +215,7 @@ public final class HlsMasterPlaylist extends HlsPlaylist {
    * @param baseUri See {@link #baseUri}.
    * @param tags See {@link #tags}.
    * @param variants See {@link #variants}.
+   * @param iFrameVariants
    * @param videos See {@link #videos}.
    * @param audios See {@link #audios}.
    * @param subtitles See {@link #subtitles}.
@@ -201,23 +227,25 @@ public final class HlsMasterPlaylist extends HlsPlaylist {
    * @param sessionKeyDrmInitData See {@link #sessionKeyDrmInitData}.
    */
   public HlsMasterPlaylist(
-      String baseUri,
-      List<String> tags,
-      List<Variant> variants,
-      List<Rendition> videos,
-      List<Rendition> audios,
-      List<Rendition> subtitles,
-      List<Rendition> closedCaptions,
-      Format muxedAudioFormat,
-      List<Format> muxedCaptionFormats,
-      boolean hasIndependentSegments,
-      Map<String, String> variableDefinitions,
-      List<DrmInitData> sessionKeyDrmInitData) {
+          String baseUri,
+          List<String> tags,
+          List<Variant> variants,
+          List<Variant> iFrameVariants,
+          List<Rendition> videos,
+          List<Rendition> audios,
+          List<Rendition> subtitles,
+          List<Rendition> closedCaptions,
+          Format muxedAudioFormat,
+          List<Format> muxedCaptionFormats,
+          boolean hasIndependentSegments,
+          Map<String, String> variableDefinitions,
+          List<DrmInitData> sessionKeyDrmInitData) {
     super(baseUri, tags, hasIndependentSegments);
     this.mediaPlaylistUrls =
         Collections.unmodifiableList(
-            getMediaPlaylistUrls(variants, videos, audios, subtitles, closedCaptions));
+            getMediaPlaylistUrls(variants, iFrameVariants, videos, audios, subtitles, closedCaptions));
     this.variants = Collections.unmodifiableList(variants);
+    this.iFrameVariants = Collections.unmodifiableList(iFrameVariants);
     this.videos = Collections.unmodifiableList(videos);
     this.audios = Collections.unmodifiableList(audios);
     this.subtitles = Collections.unmodifiableList(subtitles);
@@ -235,6 +263,7 @@ public final class HlsMasterPlaylist extends HlsPlaylist {
         baseUri,
         tags,
         copyStreams(variants, GROUP_INDEX_VARIANT, streamKeys),
+        /* iframes */ Collections.emptyList(),
         // TODO: Allow stream keys to specify video renditions to be retained.
         /* videos= */ Collections.emptyList(),
         copyStreams(audios, GROUP_INDEX_AUDIO, streamKeys),
@@ -261,6 +290,7 @@ public final class HlsMasterPlaylist extends HlsPlaylist {
         /* baseUri= */ null,
         /* tags= */ Collections.emptyList(),
         variant,
+        /* iframes= */ Collections.emptyList(),
         /* videos= */ Collections.emptyList(),
         /* audios= */ Collections.emptyList(),
         /* subtitles= */ Collections.emptyList(),
@@ -274,6 +304,7 @@ public final class HlsMasterPlaylist extends HlsPlaylist {
 
   private static List<Uri> getMediaPlaylistUrls(
       List<Variant> variants,
+      List<Variant> iFrameVariants,
       List<Rendition> videos,
       List<Rendition> audios,
       List<Rendition> subtitles,
@@ -284,6 +315,9 @@ public final class HlsMasterPlaylist extends HlsPlaylist {
       if (!mediaPlaylistUrls.contains(uri)) {
         mediaPlaylistUrls.add(uri);
       }
+    }
+    for (Variant iFrameVariant : iFrameVariants) {
+      mediaPlaylistUrls.add(iFrameVariant.url);
     }
     addMediaPlaylistUrls(videos, mediaPlaylistUrls);
     addMediaPlaylistUrls(audios, mediaPlaylistUrls);

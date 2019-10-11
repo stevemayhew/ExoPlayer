@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:android="http://schemas.android.com/apk/res/android">
+
+
+  <style name="GeekStatsContainer">
+    <item name="android:paddingLeft">5dp</item>
+    <item name="android:layout_marginLeft">20dp</item>
+    <item name="android:background">#80AA6C39</item>
+  </style>
+
+  <style name="GeekStatsText">
+  </style>
+
+  <style name="GeekStatsMetricText">
+    <item name="android:textColor">#FFD1AA</item>
+  </style>
+
+  <style name="GeekStatsMetricLabel">
+    <item name="android:textColor">#FFD1AA</item>
+    <item name="android:fontWeight">600</item>
+  </style>
+
+</resources>

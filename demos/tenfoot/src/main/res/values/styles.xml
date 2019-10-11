@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (C) 2016 The Android Open Source Project
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+          http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<resources xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <style name="TrackSelectionDialogThemeOverlay" parent="ThemeOverlay.AppCompat.Dialog.Alert">
+    <item name="windowNoTitle">false</item>
+  </style>
+
+  <style name="PlayerTheme" parent="Theme.AppCompat.NoActionBar">
+    <item name="android:windowBackground">@android:color/black</item>
+  </style>
+
+  <style name="GeekStatsContainer">
+    <item name="android:paddingLeft">5dp</item>
+    <item name="android:layout_marginLeft">20dp</item>
+    <item name="android:background">#80AA6C39</item>
+  </style>
+
+  <style name="GeekStatsText" parent="Base.TextAppearance.AppCompat.Body2">
+  </style>
+
+  <style name="GeekStatsMetricText" parent="Base.TextAppearance.AppCompat.Body2">
+    <item name="android:textColor">#FFD1AA</item>
+  </style>
+
+  <style name="GeekStatsMetricLabel" parent="Base.TextAppearance.AppCompat.Body2">
+    <item name="android:textColor">#FFD1AA</item>
+    <item name="android:fontWeight">600</item>
+  </style>
+
+</resources>

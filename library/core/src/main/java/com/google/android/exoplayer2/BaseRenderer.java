@@ -21,6 +21,7 @@ import com.google.android.exoplayer2.drm.DrmInitData;
 import com.google.android.exoplayer2.drm.DrmSessionManager;
 import com.google.android.exoplayer2.source.SampleStream;
 import com.google.android.exoplayer2.util.Assertions;
+import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.MediaClock;
 import java.io.IOException;
 
@@ -303,7 +304,7 @@ public abstract class BaseRenderer implements Renderer, RendererCapabilities {
    * @return The result, which can be {@link C#RESULT_NOTHING_READ}, {@link C#RESULT_FORMAT_READ} or
    *     {@link C#RESULT_BUFFER_READ}.
    */
-  protected final int readSource(FormatHolder formatHolder, DecoderInputBuffer buffer,
+  protected int readSource(FormatHolder formatHolder, DecoderInputBuffer buffer,
       boolean formatRequired) {
     int result = stream.readData(formatHolder, buffer, formatRequired);
     if (result == C.RESULT_BUFFER_READ) {
@@ -311,10 +312,14 @@ public abstract class BaseRenderer implements Renderer, RendererCapabilities {
         readingPositionUs = C.TIME_END_OF_SOURCE;
         return streamIsFinal ? C.RESULT_BUFFER_READ : C.RESULT_NOTHING_READ;
       }
+//      Log.d("TRICK-PLAY", readingPositionUs + " readSource() - buffer.timeUs: " + buffer.timeUs);
+
       buffer.timeUs += streamOffsetUs;
       readingPositionUs = Math.max(readingPositionUs, buffer.timeUs);
     } else if (result == C.RESULT_FORMAT_READ) {
       Format format = formatHolder.format;
+      Log.d("TRICK-PLAY", readingPositionUs + " readSource() - format read: " + format);
+
       if (format.subsampleOffsetUs != Format.OFFSET_SAMPLE_RELATIVE) {
         format = format.copyWithSubsampleOffsetUs(format.subsampleOffsetUs + streamOffsetUs);
         formatHolder.format = format;
