@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+   android:layout_width="match_parent"
+   android:layout_height="match_parent"
+   >
+
+   <!-- Nested layout positions display near top right but inside of an overscan-safe margin -->
+   <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+     android:layout_width="match_parent"
+     android:layout_height="match_parent"
+     android:layout_marginTop="27dp"
+     android:layout_marginBottom="27dp"
+     android:layout_marginLeft="48dp"
+     android:layout_marginRight="48dp">
+
+      <LinearLayout
+        android:id="@+id/geek_stats"
+        style="@style/GeekStatsContainer"
+        android:orientation="vertical"
+        android:layout_alignParentRight="true"
+        android:layout_width="430dp"
+        android:layout_height="wrap_content">
+         <RelativeLayout
+           android:layout_width="fill_parent"
+           android:layout_height="wrap_content"
+           android:orientation="horizontal">
+            <TextView style="@style/GeekStatsMetricText"
+              android:id="@+id/current_state"
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"
+              android:layout_alignParentStart="true"
+              android:layout_alignParentLeft="true"/>
+            <TextView style="@style/GeekStatsMetricText"
+              android:id="@+id/current_time"
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"
+              android:layout_alignParentEnd="true"
+              android:layout_alignParentRight="true"/>
+         </RelativeLayout>
+         <RelativeLayout
+           android:layout_width="fill_parent"
+           android:layout_height="wrap_content"
+           android:orientation="horizontal">
+            <TextView style="@style/GeekStatsMetricText"
+              android:id="@+id/current_level"
+              android:layout_alignParentStart="true"
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"/>
+         </RelativeLayout>
+         <RelativeLayout
+           android:layout_width="fill_parent"
+           android:layout_height="wrap_content">
+            <TextView style="@style/GeekStatsMetricText"
+              android:id="@+id/loading_level"
+              android:layout_alignParentStart="true"
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"/>
+         </RelativeLayout>
+         <RelativeLayout
+           android:layout_width="fill_parent"
+           android:layout_height="wrap_content">
+            <TextView style="@style/GeekStatsMetricText"
+              android:id="@+id/playback_rate"
+              android:layout_alignParentStart="true"
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"/>
+         </RelativeLayout>
+         <!--<RelativeLayout-->
+           <!--android:layout_width="fill_parent"-->
+           <!--android:layout_height="wrap_content">-->
+            <!--<com.tivo.exoplayer.library.SimpleSlidingGraph-->
+                    <!--android:layout_width="200dp"-->
+                    <!--android:layout_height="20dp"/>-->
+            <!--<TextView style="@style/GeekStatsMetricText"-->
+              <!--android:id="@+id/buffering_level"-->
+              <!--android:layout_alignParentStart="true"-->
+              <!--android:layout_width="wrap_content"-->
+              <!--android:layout_height="wrap_content"/>-->
+         <!--</RelativeLayout>-->
+     </LinearLayout>
+   </RelativeLayout>
+</RelativeLayout>

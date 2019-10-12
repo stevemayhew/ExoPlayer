@@ -22,6 +22,8 @@ include modulePrefix + 'library-core'
 include modulePrefix + 'library-dash'
 include modulePrefix + 'library-hls'
 include modulePrefix + 'library-smoothstreaming'
+include modulePrefix + 'library-tivo-ui'
+include modulePrefix + 'library-trickplay'
 include modulePrefix + 'library-ui'
 include modulePrefix + 'testutils'
 include modulePrefix + 'testutils-robolectric'
@@ -38,6 +40,7 @@ include modulePrefix + 'extension-vp9'
 include modulePrefix + 'extension-rtmp'
 include modulePrefix + 'extension-leanback'
 include modulePrefix + 'extension-jobdispatcher'
+include modulePrefix + 'extension-workmanager'
 
 project(modulePrefix + 'library').projectDir = new File(rootDir, 'library/all')
 project(modulePrefix + 'library-core').projectDir = new File(rootDir, 'library/core')
@@ -45,6 +48,8 @@ project(modulePrefix + 'library-dash').projectDir = new File(rootDir, 'library/d
 project(modulePrefix + 'library-hls').projectDir = new File(rootDir, 'library/hls')
 project(modulePrefix + 'library-smoothstreaming').projectDir = new File(rootDir, 'library/smoothstreaming')
 project(modulePrefix + 'library-ui').projectDir = new File(rootDir, 'library/ui')
+project(modulePrefix + 'library-trickplay').projectDir = new File(rootDir, 'library/trickplay')
+project(modulePrefix + 'library-tivo-ui').projectDir = new File(rootDir, 'library/tivo-ui')
 project(modulePrefix + 'testutils').projectDir = new File(rootDir, 'testutils')
 project(modulePrefix + 'testutils-robolectric').projectDir = new File(rootDir, 'testutils_robolectric')
 project(modulePrefix + 'extension-ffmpeg').projectDir = new File(rootDir, 'extensions/ffmpeg')
@@ -60,3 +65,4 @@ project(modulePrefix + 'extension-vp9').projectDir = new File(rootDir, 'extensio
 project(modulePrefix + 'extension-rtmp').projectDir = new File(rootDir, 'extensions/rtmp')
 project(modulePrefix + 'extension-leanback').projectDir = new File(rootDir, 'extensions/leanback')
 project(modulePrefix + 'extension-jobdispatcher').projectDir = new File(rootDir, 'extensions/jobdispatcher')
+project(modulePrefix + 'extension-workmanager').projectDir = new File(rootDir, 'extensions/workmanager')

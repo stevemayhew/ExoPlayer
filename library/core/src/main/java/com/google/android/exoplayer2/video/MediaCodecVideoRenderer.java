@@ -563,10 +563,12 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
       Format format,
       MediaCrypto crypto,
       float codecOperatingRate) {
+    String codecMimeType = codecInfo.codecMimeType;
     codecMaxValues = getCodecMaxValues(codecInfo, format, getStreamFormats());
     MediaFormat mediaFormat =
         getMediaFormat(
             format,
+            codecMimeType,
             codecMaxValues,
             codecOperatingRate,
             deviceNeedsNoPostProcessWorkaround,
@@ -724,6 +726,8 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
       long releaseTimeNs = System.nanoTime();
       notifyFrameMetadataListener(presentationTimeUs, releaseTimeNs, format);
       if (Util.SDK_INT >= 21) {
+        Log.d("TRICK-PLAY", bufferPresentationTimeUs + " frame force rendered " + bufferPresentationTimeUs + " releaseTime: " + releaseTimeNs + " earlyUs: " + earlyUs + " sinceLastRenderUs: " + (elapsedRealtimeNowUs - lastRenderTimeUs));
+
         renderOutputBufferV21(codec, bufferIndex, presentationTimeUs, releaseTimeNs);
       } else {
         renderOutputBuffer(codec, bufferIndex, presentationTimeUs);
@@ -760,9 +764,12 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
     if (Util.SDK_INT >= 21) {
       // Let the underlying framework time the release.
       if (earlyUs < 50000) {
+//        Log.d("TRICK-PLAY", "renderPositionUs: " + positionUs  + " buffer.timeUs " + bufferPresentationTimeUs + " frame normal rendered " + bufferPresentationTimeUs + " adjustedReleaseTimeNs: " + adjustedReleaseTimeNs + " earlyUs: " + earlyUs + " sinceLastRenderUs: " + (elapsedRealtimeNowUs - lastRenderTimeUs));
         notifyFrameMetadataListener(presentationTimeUs, adjustedReleaseTimeNs, format);
         renderOutputBufferV21(codec, bufferIndex, presentationTimeUs, adjustedReleaseTimeNs);
         return true;
+      } else {
+//        Log.d("TRICK-PLAY", bufferPresentationTimeUs + " holding frame " + bufferPresentationTimeUs + " earlyUs: " + earlyUs + " lastRenderTimeUs: " + lastRenderTimeUs);
       }
     } else {
       // We need to time the release ourselves.
@@ -1123,6 +1130,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
    * Returns the framework {@link MediaFormat} that should be used to configure the decoder.
    *
    * @param format The format of media.
+   * @param codecMimeType The MIME type handled by the codec.
    * @param codecMaxValues Codec max values that should be used when configuring the decoder.
    * @param codecOperatingRate The codec operating rate, or {@link #CODEC_OPERATING_RATE_UNSET} if
    *     no codec operating rate should be set.
@@ -1135,13 +1143,14 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
   @SuppressLint("InlinedApi")
   protected MediaFormat getMediaFormat(
       Format format,
+      String codecMimeType,
       CodecMaxValues codecMaxValues,
       float codecOperatingRate,
       boolean deviceNeedsNoPostProcessWorkaround,
       int tunnelingAudioSessionId) {
     MediaFormat mediaFormat = new MediaFormat();
     // Set format parameters that should always be set.
-    mediaFormat.setString(MediaFormat.KEY_MIME, format.sampleMimeType);
+    mediaFormat.setString(MediaFormat.KEY_MIME, codecMimeType);
     mediaFormat.setInteger(MediaFormat.KEY_WIDTH, format.width);
     mediaFormat.setInteger(MediaFormat.KEY_HEIGHT, format.height);
     MediaFormatUtil.setCsdBuffers(mediaFormat, format.initializationData);
@@ -1441,6 +1450,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer {
             case "1713":
             case "1714":
             case "A10-70F":
+            case "A10-70L":
             case "A1601":
             case "A2016a40":
             case "A7000-a":

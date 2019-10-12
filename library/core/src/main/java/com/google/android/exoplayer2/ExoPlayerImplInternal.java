@@ -326,14 +326,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
           doSomeWork();
           break;
         case MSG_SEEK_TO:
-          try {
-              seekToInternal((SeekPosition) msg.obj);
-          }
-          catch (IllegalSeekPositionException e) {
-              // Ignore this - so a seek fails.  No reason to completely
-              // terminate playback!
-              Log.e(TAG, "Seek failed: " + e);
-          }
+          seekToInternal((SeekPosition) msg.obj);
           break;
         case MSG_SET_PLAYBACK_PARAMETERS:
           setPlaybackParametersInternal((PlaybackParameters) msg.obj);
@@ -355,17 +348,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
           handlePeriodPrepared((MediaPeriod) msg.obj);
           break;
         case MSG_REFRESH_SOURCE_INFO:
-          try {
-            handleSourceInfoRefreshed((MediaSourceRefreshInfo) msg.obj);
-          }
-          catch (IllegalSeekPositionException e) {
-            // Ignore this -- the illegal seek has already been handled by
-            // handleSourceInfoRefreshed by seeking back to the beginning of
-            // the timeline, so no need to do anything else here.  But do log
-            // it.
-            Log.e(TAG, "Illegal seek occurred during source info refresh, " +
-                  "position reset: " + e);
-          }
+          handleSourceInfoRefreshed((MediaSourceRefreshInfo) msg.obj);
           break;
         case MSG_SOURCE_CONTINUE_LOADING_REQUESTED:
           handleContinueLoadingRequested((MediaPeriod) msg.obj);
@@ -1321,8 +1304,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
       Pair<Object, Long> defaultPosition =
           getPeriodPosition(
               timeline, timeline.getFirstWindowIndex(shuffleModeEnabled), C.TIME_UNSET);
-      newContentPositionUs = defaultPosition.second;
-      newPeriodId = queue.resolveMediaPeriodIdForAds(defaultPosition.first, newContentPositionUs);
+      newPeriodId = queue.resolveMediaPeriodIdForAds(defaultPosition.first, defaultPosition.second);
+      if (!newPeriodId.isAd()) {
+        // Keep unset start position if we need to play an ad first.
+        newContentPositionUs = defaultPosition.second;
+      }
     } else if (timeline.getIndexOfPeriod(newPeriodId.periodUid) == C.INDEX_UNSET) {
       // The current period isn't in the new timeline. Attempt to resolve a subsequent period whose
       // window we can restart from.

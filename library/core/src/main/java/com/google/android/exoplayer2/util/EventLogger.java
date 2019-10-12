@@ -339,7 +339,7 @@ public class EventLogger implements AnalyticsListener {
   @Override
   public void onLoadStarted(
       EventTime eventTime, LoadEventInfo loadEventInfo, MediaLoadData mediaLoadData) {
-    // Do nothing.
+    logd(eventTime,"loadStarted", loadEventInfo.toString());
   }
 
   @Override
@@ -355,13 +355,14 @@ public class EventLogger implements AnalyticsListener {
   @Override
   public void onLoadCanceled(
       EventTime eventTime, LoadEventInfo loadEventInfo, MediaLoadData mediaLoadData) {
+    logd(eventTime,"loadCanceled", loadEventInfo.toString());
     // Do nothing.
   }
 
   @Override
   public void onLoadCompleted(
       EventTime eventTime, LoadEventInfo loadEventInfo, MediaLoadData mediaLoadData) {
-    // Do nothing.
+    logd(eventTime,"loadCompleted", loadEventInfo.toString());
   }
 
   @Override
@@ -372,6 +373,7 @@ public class EventLogger implements AnalyticsListener {
   @Override
   public void onBandwidthEstimate(
       EventTime eventTime, int totalLoadTimeMs, long totalBytesLoaded, long bitrateEstimate) {
+    logd(eventTime, "bandwidthEstimate", "Received BW Estimate.  Loaded Bytes: " + totalBytesLoaded + " bitrate: " + bitrateEstimate);
     // Do nothing.
   }
 

@@ -447,6 +447,7 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsSampleStreamWrapper
             : Collections.emptyMap();
 
     boolean hasVariants = !masterPlaylist.variants.isEmpty();
+    boolean hasIFrameVariants = !masterPlaylist.iFrameVariants.isEmpty();
     List<Rendition> audioRenditions = masterPlaylist.audios;
     List<Rendition> subtitleRenditions = masterPlaylist.subtitles;
 
@@ -454,13 +455,17 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsSampleStreamWrapper
     ArrayList<HlsSampleStreamWrapper> sampleStreamWrappers = new ArrayList<>();
     ArrayList<int[]> manifestUrlIndicesPerWrapper = new ArrayList<>();
 
-    if (hasVariants) {
+    ArrayList<Variant> allVariants = new ArrayList<>();
+    allVariants.addAll(masterPlaylist.variants);
+    allVariants.addAll(masterPlaylist.iFrameVariants);
+    if (hasVariants){
       buildAndPrepareMainSampleStreamWrapper(
           masterPlaylist,
           positionUs,
           sampleStreamWrappers,
           manifestUrlIndicesPerWrapper,
-          overridingDrmInitData);
+          overridingDrmInitData,
+          allVariants);
     }
 
     // TODO: Build video stream wrappers here.
@@ -535,12 +540,12 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsSampleStreamWrapper
       long positionUs,
       List<HlsSampleStreamWrapper> sampleStreamWrappers,
       List<int[]> manifestUrlIndicesPerWrapper,
-      Map<String, DrmInitData> overridingDrmInitData) {
-    int[] variantTypes = new int[masterPlaylist.variants.size()];
+      Map<String, DrmInitData> overridingDrmInitData, List<Variant> variants) {
+    int[] variantTypes = new int[variants.size()];
     int videoVariantCount = 0;
     int audioVariantCount = 0;
-    for (int i = 0; i < masterPlaylist.variants.size(); i++) {
-      Variant variant = masterPlaylist.variants.get(i);
+    for (int i = 0; i < variants.size(); i++) {
+      Variant variant = variants.get(i);
       Format format = variant.format;
       if (format.height > 0 || Util.getCodecsOfType(format.codecs, C.TRACK_TYPE_VIDEO) != null) {
         variantTypes[i] = C.TRACK_TYPE_VIDEO;
@@ -571,10 +576,10 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsSampleStreamWrapper
     Format[] selectedPlaylistFormats = new Format[selectedVariantsCount];
     int[] selectedVariantIndices = new int[selectedVariantsCount];
     int outIndex = 0;
-    for (int i = 0; i < masterPlaylist.variants.size(); i++) {
+    for (int i = 0; i < variants.size(); i++) {
       if ((!useVideoVariantsOnly || variantTypes[i] == C.TRACK_TYPE_VIDEO)
           && (!useNonAudioVariantsOnly || variantTypes[i] != C.TRACK_TYPE_AUDIO)) {
-        Variant variant = masterPlaylist.variants.get(i);
+        Variant variant =variants.get(i);
         selectedPlaylistUrls[outIndex] = variant.url;
         selectedPlaylistFormats[outIndex] = variant.format;
         selectedVariantIndices[outIndex++] = i;
@@ -598,8 +603,8 @@ public final class HlsMediaPeriod implements MediaPeriod, HlsSampleStreamWrapper
       List<TrackGroup> muxedTrackGroups = new ArrayList<>();
       if (variantsContainVideoCodecs) {
         Format[] videoFormats = new Format[selectedVariantsCount];
-        for (int i = 0; i < videoFormats.length; i++) {
-          videoFormats[i] = deriveVideoFormat(selectedPlaylistFormats[i]);
+        for (int i1 = 0; i1 < videoFormats.length; i1++) {
+          videoFormats[i1] = deriveVideoFormat(selectedPlaylistFormats[i1]);
         }
         muxedTrackGroups.add(new TrackGroup(videoFormats));
 
