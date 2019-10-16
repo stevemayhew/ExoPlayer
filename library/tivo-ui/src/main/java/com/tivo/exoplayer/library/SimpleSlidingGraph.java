@@ -8,88 +8,117 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.util.AttributeSet;
 import android.view.View;
+import java.util.ArrayList;
+import java.util.List;
 
 public class SimpleSlidingGraph extends View implements Runnable {
 
-
-  public static final int STEP = 4;
-  private Paint filled = new Paint();
-  private int currentTime = 0;
-  private boolean wrapped = false;
+  public static final int VERTICAL_PADDING = 2;
   private int backgroundColor;
+  private float currentHeight = -1.0f;
+  private float currentWidth = -1.0f;
 
-  private Path pathList[] = new Path[2];
+  private List<TraceLine> traces;
+
+  public static final float MAX_X = 200.0f;
+
+  private class TraceLine {
+    private Path path;
+    private Paint paint;
+    private float minValue;
+    private float maxValue;
+    private float currentX;
+
+    TraceLine(Color color, float minValue, float maxValue) {
+      this.minValue = minValue;
+      this.maxValue = maxValue;
+      paint = new Paint();
+      path = new Path();
+      paint.setAntiAlias(true);
+      paint.setStyle(Paint.Style.STROKE);
+      paint.setStrokeWidth(2);
+      paint.setColor(color.toArgb());
+      currentX = 0;
+    }
+
+    public void drawOn(Canvas canvas) {
+      canvas.drawPath(path, paint);
+    }
+
+
+    public void addDataPoint(float value) {
+      if (path.isEmpty()) {
+        path.moveTo(0, currentHeight);
+      }
+      float x = timeToPixels(++currentX);
+      path.lineTo(x, valueToPixels(value));
+
+      if (value > this.maxValue) {
+        Matrix rescale = new Matrix();
+        rescale.setScale(1.0f, value / this.maxValue);
+        path.transform(rescale);
+        this.maxValue = value;
+      }
+
+      // Flush our old path (good place to not let it grow infinately in size
+      // and position back to the start.
+      //  TODO - could implement some sliding behavior, but not really worth it.
+      if (x > (.95 * currentWidth)) {
+        currentX = 0;
+        path.reset();
+        path.moveTo(0, currentHeight);
+      }
+    }
+
+    private float valueToPixels(float value) {
+      return currentHeight - (value * currentHeight / (maxValue - minValue));
+    }
+
+    private float timeToPixels(float time) {
+      return time * currentWidth / MAX_X;
+    }
+  }
 
   public SimpleSlidingGraph(Context context, AttributeSet attrs) {
     super(context, attrs);
 
-    backgroundColor = Color.BLACK;
+    backgroundColor = Color.GRAY;
     setBackgroundColor(backgroundColor);
 
-    pathList[0] = new Path();
-    pathList[1] = new Path();
+    traces = new ArrayList<>();
 
-    filled.setStrokeWidth(STEP);
-    filled.setColor(0xFF20fe00);
-
-    pathList[0].moveTo(0, 0);
-    int i = 0;
-    for (float angle=1; angle < (2 * Math.PI) * 4 ; angle += 0.083775804095728) {
-      float sin = (float) Math.sin(angle);
-      float y = 40 * sin;
-      pathList[0].lineTo(i++, y);
-    }
-    postDelayed(this, 1000);
   }
 
   @Override
   protected void onSizeChanged(int w, int h, int oldw, int oldh) {
     super.onSizeChanged(w, h, oldw, oldh);
+
+    this.currentHeight = h - VERTICAL_PADDING;
+    this.currentWidth = w;
   }
 
   @Override
   protected void onDraw(Canvas canvas) {
-
-    canvas.drawPath(pathList[0], filled);
-
+    for (TraceLine traceLine : traces) {
+      traceLine.drawOn(canvas);
+    }
   }
-
-  //
-//  @Override
-//  protected void onDraw(Canvas canvas) {
-//
-//    if (currentTime >= canvas.getWidth()) {
-//      currentTime = 0;
-//      wrapped = true;
-//    } else if (wrapped && currentTime < (canvas.getWidth() - STEP)) {
-//
-//      // Black out the oldest line of data
-//
-//      filled.setColor(backgroundColor);
-//      canvas.drawLine(currentTime - STEP, 0, currentTime - STEP, canvas.getHeight(), filled);
-//    }
-//
-//    int red = 0;
-//    int green = 0;
-//    int blue = 0;
-//
-//    if (((currentTime / 4) % 2) == 0) {
-//      blue = 0; green = 255;
-//    } else {
-//      blue = 255; green = 0;
-//    }
-//
-//    filled.setColor(Color.rgb(red, green, blue));
-//    canvas.drawLine(currentTime, 0, currentTime, canvas.getHeight(), filled);
-//  }
-
 
   @Override
   public void run() {
-    Matrix matrix = new Matrix();
-    matrix.postTranslate(5, 0);
-    pathList[0].transform(matrix);
     invalidate();
     postDelayed(this, 1000);
+  }
+
+  public int addTraceLine(Color color, float minValue, float maxValue) {
+    traces.add(new TraceLine(color, minValue, maxValue));
+    return traces.size() - 1;
+  }
+
+  public void addDataPoint(float value, int traceNumber) {
+    if (traces.size() > traceNumber && currentHeight > 0.0f) {
+      traces.get(traceNumber).addDataPoint(value);
+      invalidate();
+    }
   }
 }

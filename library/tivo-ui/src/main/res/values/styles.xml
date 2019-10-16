@@ -5,7 +5,7 @@
   <style name="GeekStatsContainer">
     <item name="android:paddingLeft">5dp</item>
     <item name="android:layout_marginLeft">20dp</item>
-    <item name="android:background">#80AA6C39</item>
+    <item name="android:background">#b5aa6c39</item>
   </style>
 
   <style name="GeekStatsText">
@@ -16,8 +16,8 @@
   </style>
 
   <style name="GeekStatsMetricLabel">
-    <item name="android:textColor">#FFD1AA</item>
-    <item name="android:fontWeight">600</item>
+    <item name="android:textColor">#989ae2</item>
+    <item name="android:textStyle">bold</item>
   </style>
 
 </resources>

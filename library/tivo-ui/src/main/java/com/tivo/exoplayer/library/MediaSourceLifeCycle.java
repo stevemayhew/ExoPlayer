@@ -13,8 +13,8 @@ public interface MediaSourceLifeCycle extends
    * This method Creates a {@link MediaSource} and makes it the current mediasource.  If the
    * player is set to play when ready playback will begin as soon as buffering completes.
    *
-   * @param uri
-   * @param enableChunkless
+   * @param uri - URI (must be HTTP[x] schema, to play with HLS
+   * @param enableChunkless - sets the chunkless prepare option on mediasource
    */
   void playUrl(Uri uri, boolean enableChunkless);
 

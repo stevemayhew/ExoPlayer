@@ -22,23 +22,4 @@
   <style name="PlayerTheme" parent="Theme.AppCompat.NoActionBar">
     <item name="android:windowBackground">@android:color/black</item>
   </style>
-
-  <style name="GeekStatsContainer">
-    <item name="android:paddingLeft">5dp</item>
-    <item name="android:layout_marginLeft">20dp</item>
-    <item name="android:background">#80AA6C39</item>
-  </style>
-
-  <style name="GeekStatsText" parent="Base.TextAppearance.AppCompat.Body2">
-  </style>
-
-  <style name="GeekStatsMetricText" parent="Base.TextAppearance.AppCompat.Body2">
-    <item name="android:textColor">#FFD1AA</item>
-  </style>
-
-  <style name="GeekStatsMetricLabel" parent="Base.TextAppearance.AppCompat.Body2">
-    <item name="android:textColor">#FFD1AA</item>
-    <item name="android:fontWeight">600</item>
-  </style>
-
 </resources>

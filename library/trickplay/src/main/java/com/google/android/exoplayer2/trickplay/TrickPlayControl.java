@@ -26,7 +26,7 @@ public interface TrickPlayControl {
      * The TrickPlayControl must create the Renderers for ExoPlayer when using TrickPlayControl
      * this allows control of frame-rate during trick playback.
      *
-     * @param context
+     * @param context - android content context
      * @return RenderersFactory you can pass to {@link ExoPlayerFactory#newSimpleInstance(Context, RenderersFactory, TrackSelector)}
      */
     RenderersFactory createRenderersFactory(Context context);
@@ -35,8 +35,8 @@ public interface TrickPlayControl {
      * Create a LoadControl instance that wraps the 'delegate' LoadControl by adding support
      * for behaviors required for trick play
      *
-     * @param delegate
-     * @return
+     * @param delegate if not in trick-play mode, the interface delgates to this object
+     * @return new LoadControl instance, wrapping the delegate, that handles trick-play
      */
     LoadControl createLoadControl(LoadControl delegate);
 
@@ -74,38 +74,45 @@ public interface TrickPlayControl {
     boolean isMetadataValid();
 
     /**
-     * Set the TrickMode to "newMode", this will immediately change the playback speed.
+     * Set the TrickMode to "newMode", if possible.  Mode switch to {@link TrickMode#NORMAL} is
+     * always possible.  The {@link TrickPlayControl} checks to see if the mode switch to
+     * a fast play mode is possible, that is sufficient seekable regions exist in the direction
+     * of fast playback, if so it will return 0.  If not it will return -1.
      *
-     * When the transition exits trick-play (newMode is {@see TrickMode.NORMAL}) the player
-     * returns the number of recorded trick-play frame times
+     * The playback speed changes immediately.
      *
-     * @param newMode
-     * @return number of saved trick-play frame times
+     * When the transition exits trick-play (newMode is {@link TrickMode#NORMAL}) the player
+     * returns the number of recorded trick-play frame times (0 or more.  This can be passed to
+     * the {@link #seekToNthPlayedTrickFrame} in order to jump back that many frames.  By default
+     * playback starts in normal mode as if you called seekToNthPlayedTrickFrame(0).
+     *
+     * @param newMode the trick-play mode to set
+     * @return number of saved trick-play frame times, or -1 if setting to fast play fails.
      */
     int setTrickMode(TrickMode newMode);
 
     /**
      * Seeks to the last Nth played trick-play frame.  Only valid after a transition form
-     * a trick-play mode to normal ({@see TrickMode.NORMAL}) playback mode.
+     * a trick-play mode to normal ({@link TrickMode#NORMAL}) playback mode.
      *
      * This API is intended to allow selecting N frames back from the stop point for overshoot
      * correction, or for a keyevent selected skip back feature
      *
-     * @param frameNumber
+     * @param frameNumber frame number (0 is most recent, &gt;0 goes back up to N frames)
      * @return true if the seek was possible (saved frames, and at least frameNumber frames were saved)
      */
     boolean seekToNthPlayedTrickFrame(int frameNumber);
 
     /**
-     * Get the acutal playback speed represented by the {@see TrickMode}, mode.
+     * Get the acutal playback speed represented by the {@link TrickMode}, mode.
      *
      * This will reflect the availability of high speed playback support (eg via IFrame only playlist)
-     * once the {@see TrickPlayEventListener} signals that high speed support was enabled.  Prior
+     * once the {@link TrickPlayEventListener} signals that high speed support was enabled.  Prior
      * to this default speeds are returned.
      *
      *
-     * @param mode
-     * @return
+     * @param mode the mode to get the speed for
+     * @return the playback speed (negative is reverse), tempered by availablity of iframe track
      */
     Float getSpeedFor(TrickMode mode);
 

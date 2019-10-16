@@ -105,18 +105,53 @@ public class SimpleExoPlayerFactory implements
    * {@link com.google.android.exoplayer2.source.MediaSource}.  Override this if you need
    * to produce and manage custom media sources
    *
-   * @return
+   * @return returns a new {@link DefaultMediaSourceLifeCycle} unless overridden
    */
   protected MediaSourceLifeCycle createMediaSourceLifeCycle() {
     return new DefaultMediaSourceLifeCycle(player, context);
   }
 
-  protected AnalyticsListener createPlayerErrorHandler(
-      SimpleExoPlayer player, MediaSourceLifeCycle mediaSourceLifeCycle) {
-    List<DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery> errorHandlers =
-        Arrays.asList(this, mediaSourceLifeCycle);
+  /**
+   * Creates an error handler.  Default is the {@link DefaultExoPlayerErrorHandler}, to add your
+   * own error handling or reporting extend this class and return your class here.  Make sure
+   * to honor the @CallSuper annotations to ensure proper error recovery operation.
+   *
+   * @param mediaSourceLifeCycle current {@link MediaSourceLifeCycle}, this is one of the error handlers
+   * @return default returns {@link DefaultExoPlayerErrorHandler}, return a subclass thereof if you override
+   */
+  protected AnalyticsListener createPlayerErrorHandler(MediaSourceLifeCycle mediaSourceLifeCycle) {
+    List<DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery> errorHandlers = getDefaultPlaybackExceptionHandlers(
+        mediaSourceLifeCycle);
 
     return new DefaultExoPlayerErrorHandler(errorHandlers);
+  }
+
+  /**
+   * If you override {@link #createPlayerErrorHandler(MediaSourceLifeCycle)}, use this method to get
+   * the default set of {@link com.tivo.exoplayer.library.DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery}
+   * handlers to pass to the {@link DefaultExoPlayerErrorHandler} you have extended.  For example:
+   *
+   * <pre>
+   *   ...
+   *
+   *   protected AnalyticsListener createPlayerErrorHandler(MediaSourceLifeCycle mediaSourceLifeCycle) {
+   *     return new MyExoPlayerErrorHanlder(getDefaultPlaybackExceptionHandlers(mediaSourceLifeCycle);
+   *   }
+   *
+   *   protected void playerErrorProcessed(EventTime eventTime, ExoPlaybackException error, boolean recovered) {
+   *     log the error, pass to your clients, etc...
+   *   }
+   *
+   *   ...
+   * </pre>
+   *
+   *
+   * @param mediaSourceLifeCycle - the current MediaSourceLifeCycle
+   * @return the default list of playback error handlers.
+   */
+  protected List<DefaultExoPlayerErrorHandler.PlaybackExceptionRecovery> getDefaultPlaybackExceptionHandlers(
+      MediaSourceLifeCycle mediaSourceLifeCycle) {
+    return Arrays.asList(this, mediaSourceLifeCycle);
   }
 
   // Public API Methods
@@ -157,6 +192,15 @@ public class SimpleExoPlayerFactory implements
     TrickPlayControlFactory trickPlayControlFactory = new TrickPlayControlFactory();
     trickPlayControl = trickPlayControlFactory.createTrickPlayControl(trackSelector);
     RenderersFactory renderersFactory = trickPlayControl.createRenderersFactory(context);
+
+    // Test broken hydra settings
+    DefaultLoadControl dlc = new DefaultLoadControl.Builder()
+        .setBufferDurationsMs(DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
+                DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
+                1500,
+                DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS).createDefaultLoadControl();
+
+//    LoadControl loadControl = trickPlayControl.createLoadControl(dlc);
     LoadControl loadControl = trickPlayControl.createLoadControl(new DefaultLoadControl());
     player = ExoPlayerFactory.newSimpleInstance(context, renderersFactory, trackSelector, loadControl);
 
@@ -165,7 +209,7 @@ public class SimpleExoPlayerFactory implements
     trickPlayControl.setPlayer(player);
     player.setPlayWhenReady(playWhenReady);
     player.addAnalyticsListener(new EventLogger(trackSelector));
-    player.addAnalyticsListener(createPlayerErrorHandler(player, mediaSourceLifeCycle));
+    player.addAnalyticsListener(createPlayerErrorHandler(mediaSourceLifeCycle));
     return player;
   }
 
@@ -237,7 +281,7 @@ public class SimpleExoPlayerFactory implements
   /**
    * Audio track selection will pick the best audio track that is the closes match to this language by default.
    *
-   * @param preferedAudioLanguage
+   * @param preferedAudioLanguage - langauge string for audio (e.g. Locale.getDefault().getLanguage())
    */
   public void setPreferredAudioLanguage(String preferedAudioLanguage) {
     DefaultTrackSelector.ParametersBuilder builder = trackSelector.buildUponParameters();
@@ -270,8 +314,8 @@ public class SimpleExoPlayerFactory implements
    * use {@link #selectTrack(TrackInfo)}
    *
    * The preferred method is using the APIs that use Constraint Based Selection (see
-   * {@link https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/trackselection/DefaultTrackSelector.html})
-   * like for example {@see #setCloseCaption}
+   * <a href="https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/trackselection/DefaultTrackSelector.html">DefaultTrackSelector</a>)
+   * like for example {@link #setCloseCaption(boolean, String)}
    *
    * Note, this will return an empty list until the media is prepared (player transitions to playback state
    * {@link com.google.android.exoplayer2.Player#STATE_READY}
@@ -304,8 +348,8 @@ public class SimpleExoPlayerFactory implements
    * Force select the track specified, overriding any constraint based selection or any previous
    * selection.
    *
-   * @param trackInfo
-   * @return
+   * @param trackInfo the {@link TrackInfo} for the track to select (the {@link Format} keys selection)
+   * @return true if the track with the indicated Format was found and selected.
    */
   public boolean selectTrack(TrackInfo trackInfo) {
     boolean wasSelected = false;
@@ -383,13 +427,13 @@ public class SimpleExoPlayerFactory implements
   }
 
   /**
-   * This is used by the ExoPlayer demo to facilitate using the {@link TrackSelectionDialogBuilder} in
+   * This is used by the ExoPlayer demo to facilitate using the TrackSelectionDialogBuilder in
    * the library-ui.
    *
-   * Using higher level methods like {@see #setCloseCaption} is preferred, but this method is available
+   * Using higher level methods like {@link #setCloseCaption} is preferred, but this method is available
    * to allow clients to perform any track selections not supported by this class.
    *
-   * @return
+   * @return the current track selector
    */
   public DefaultTrackSelector getTrackSelector() {
     return trackSelector;
@@ -430,8 +474,8 @@ public class SimpleExoPlayerFactory implements
   /**
    * Returns true if the {@link Format} specified is an audio track format.
    *
-   * @param format
-   * @return
+   * @param format {@link Format} object to test.
+   * @return true if the format is audio
    */
   public static boolean isAudioFormat(Format format) {
     boolean isAudio = false;
@@ -448,8 +492,8 @@ public class SimpleExoPlayerFactory implements
   /**
    * Returns true if the {@link Format} specified is an text track format
    *
-   * @param format
-   * @return
+   * @param format {@link Format} object to test.
+   * @return true if format is text
    */
   public static boolean isTextFormat(Format format) {
     return MimeTypes.getTrackType(format.sampleMimeType) == C.TRACK_TYPE_TEXT;
