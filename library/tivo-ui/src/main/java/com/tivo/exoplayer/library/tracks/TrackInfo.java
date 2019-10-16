@@ -6,6 +6,7 @@ import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.ui.TrackNameProvider;
 import com.google.android.exoplayer2.util.MimeTypes;
+import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
 
 /**
  * ExoPlayer trackselection is based on constraints, that is instead of waiting till
@@ -17,13 +18,15 @@ import com.google.android.exoplayer2.util.MimeTypes;
  * you can use {@link com.tivo.exoplayer.library.SimpleExoPlayerFactory#setCloseCaption(boolean, String)}
  *
  * The other option is to wait till tracks present themselves then select specific tracks with overrides
- * ({@see https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/trackselection/DefaultTrackSelector.html})
+ * <a href="https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/trackselection/DefaultTrackSelector.html">DefaultTrackSelection</a>)
  *
- * This object can be used to facilitate an 'override selection' (using {@link com.tivo.exoplayer.library.SimpleExoPlayerFactory#selectionOverride()}
- * The {@link com.google.android.exoplayer2.SimpleExoPlayer#getTrackInfo}
+ * This object can be used to facilitate an 'override selection' (using {@link com.tivo.exoplayer.library.SimpleExoPlayerFactory#selectTrack(TrackInfo)}
+ * The {@link SimpleExoPlayerFactory#getAvailableTextTracks()} and {@link SimpleExoPlayerFactory#getAvailableTextTracks()} return track info
+ * for text (captions) and audio respectively.
+ *
  * In ExoPlayer every available track (including individual bitrates for an adaptive stream) are represented
  * by a {@link Format} in a @{link {@link com.google.android.exoplayer2.source.TrackGroupArray}}.
- * So it is possible to select a specific bitrate with an
+ * So it is possible to select a specific bitrate with an adatptive video set, this is not supported by this API
  */
 public class TrackInfo {
   public static final int TRACK_TYPE_CC = C.TRACK_TYPE_TEXT;
@@ -34,6 +37,13 @@ public class TrackInfo {
   public final Format format;
   public String desc;
 
+  /**
+   * Create a TrackInfo for the track with the indicated {@link Format}.  The
+   * Format is the buisness key for locating a track.
+   *
+   * @param format - format that identifies the track
+   * @param isSelected - if it is selected.
+   */
   public TrackInfo(Format format, boolean isSelected) {
     this.isSelected = isSelected;
     this.format = format;
@@ -47,7 +57,7 @@ public class TrackInfo {
   /**
    * Get default or last set descriptive text
    *
-   * @return
+   * @return descriptive text
    */
   public String getDesc() {
     return desc;
@@ -58,7 +68,7 @@ public class TrackInfo {
    * they are using.  For example, by using the {@link TrackNameProvider} with localized
    * resources.
    *
-   * @param desc
+   * @param desc descriptive text
    */
   public void setDesc(String desc) {
     this.desc = desc;
@@ -69,7 +79,7 @@ public class TrackInfo {
    * format.  The {@link com.google.android.exoplayer2.ui.DefaultTrackNameProvider} does
    * this with localized resources.
    *
-   * @param provider
+   * @param provider DefaultTrackNameProvider to use for setting description from format
    * @return updated description
    */
   public String setDescWithProvider(TrackNameProvider provider) {

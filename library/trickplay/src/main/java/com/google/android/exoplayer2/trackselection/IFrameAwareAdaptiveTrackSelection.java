@@ -72,7 +72,7 @@ public class IFrameAwareAdaptiveTrackSelection extends AdaptiveTrackSelection {
    *     if a more accurate estimate of the current track bitrate is available.
    * @param playbackSpeed The current playback speed.
    * @param effectiveBitrate The bitrate available to this selection.
-   * @return
+   * @return true if the format can be selected
    */
   protected boolean canSelectFormat(
       Format format, int trackBitrate, float playbackSpeed, long effectiveBitrate) {

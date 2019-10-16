@@ -1,5 +1,7 @@
 package com.tivo.exoplayer.library;
 
+import android.content.Context;
+import android.graphics.Color;
 import android.view.View;
 import android.widget.TextView;
 import androidx.annotation.Nullable;
@@ -37,6 +39,13 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   private static final SimpleDateFormat UTC_TIME = new SimpleDateFormat("HH:mm:ss.S Z", Locale.getDefault());
 
   private final View containingView;
+  private final SimpleSlidingGraph bufferingGraph;
+  private final TextView bufferingLevel;
+  private final TextView bandwidthStats;
+  private final SimpleSlidingGraph bandwidthGraph;
+  private final int levelBitrateTraceNum;
+  private final int bandwidthTraceNum;
+  private final TextView manifestUrl;
 
   @Nullable
   private SimpleExoPlayer player;
@@ -54,6 +63,7 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
   private Format lastLoadedVideoFormat;
   private Format lastDownstreamVideoFormat;
+  private float minBandwidth;
   private long lastPositionReport;
 
   // Statistic counters, reset on url change
@@ -61,18 +71,41 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   private int levelSwitchCount = 0;
   private int lastPlayState = Player.STATE_IDLE;
 
-  public GeekStatsOverlay(View view, int updateInterval) {
+  public GeekStatsOverlay(View view, Context context, int updateInterval) {
     containingView = view;
     currentLevel = view.findViewById(R.id.current_level);
     loadingLevel = view.findViewById(R.id.loading_level);
     stateView = view.findViewById(R.id.current_state);
     currentTimeView = view.findViewById(R.id.current_time);
     playbackRate = view.findViewById(R.id.playback_rate);
+
+    bufferingGraph = view.findViewById(R.id.buffering_graph);
+
+    Color traceColor = Color.valueOf(context.getColor(R.color.colorBuffered));
+    bufferingGraph.addTraceLine(traceColor, 0, 70);
+
+    bufferingLevel = view.findViewById(R.id.buffering_level);
+
+    bandwidthStats = view.findViewById(R.id.bandwidth_stats);
+
+    bandwidthGraph = view.findViewById(R.id.bandwidth_graph);
+
+    // Add a line for current level bitrate (in Mbps) TODO - move to track select
+    traceColor = Color.valueOf(context.getColor(R.color.colorLevel));
+    levelBitrateTraceNum =
+        bandwidthGraph.addTraceLine(traceColor, 0, 30);
+
+    // Add a line for current bandwidth bitrate (in Mbps)
+    traceColor = Color.valueOf(context.getColor(R.color.colorBandwidth));
+    bandwidthTraceNum =
+        bandwidthGraph.addTraceLine(traceColor, 0, 150);
+
+    manifestUrl = view.findViewById(R.id.manifest_url);
     this.updateInterval = updateInterval;
   }
 
-  public GeekStatsOverlay(View view) {
-    this(view, 1000);
+  public GeekStatsOverlay(View view, Context context) {
+    this(view, context,1000);
   }
 
   /**
@@ -98,18 +131,24 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
     if (visibility == View.VISIBLE) {
       containingView.setVisibility(View.INVISIBLE);
+      stop();
     } else {
       containingView.setVisibility(View.VISIBLE);
+      start();
     }
   }
 
   private void start() {
-    player.addAnalyticsListener(this);
-    timedTextUpdate();
+    if (player != null) {
+      player.addAnalyticsListener(this);
+      timedTextUpdate();
+    }
   }
 
   private void stop() {
-    player.removeAnalyticsListener(this);
+    if (player != null) {
+      player.removeAnalyticsListener(this);
+    }
     containingView.removeCallbacks(this);
     resetStats();
   }
@@ -118,13 +157,28 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
     currentTimeView.setText(getPositionString());
     currentLevel.setText(getPlayingLevel());
     playbackRate.setText(getPlaybackRateString());
+
+    float buffered = getBufferedSeconds();
+    bufferingGraph.addDataPoint(buffered, 0);
+    bufferingLevel.setText(String.format(Locale.getDefault(), "%.2fs", buffered));
     containingView.removeCallbacks(this);
     containingView.postDelayed(this, updateInterval);
+  }
+
+  private float getBufferedSeconds() {
+    float buffered = 0.0f;
+    if (player != null) {
+      long bufferedMs = player.getTotalBufferedDuration();
+      buffered = bufferedMs / 1000.0f;
+    }
+    return buffered;
   }
 
   private void resetStats() {
     levelSwitchCount = 0;
     lastTimeUpdate = C.TIME_UNSET;
+    minBandwidth = 0.0f;
+    manifestUrl.setText("");
   }
 
   private String getPlayerState() {
@@ -149,17 +203,19 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   }
 
   protected String getPlayingLevel() {
-    String level = "Playing: ";
+    String level = "<unknown>";
 
     if (player != null) {
       Format format = lastDownstreamVideoFormat
           == null ? player.getVideoFormat() : lastDownstreamVideoFormat;
-      DecoderCounters decoderCounters = player.getAudioDecoderCounters();
+      DecoderCounters decoderCounters = player.getVideoDecoderCounters();
 
-      level += getFormatString(format) + " - changes: " + levelSwitchCount;
+      level = getFormatString(format) + " - lvl chg: " + levelSwitchCount + " ";
 
       if (decoderCounters != null) {
-        level += " dropped: " + decoderCounters.droppedBufferCount;
+        level += String.format(Locale.getDefault(), "(db:%d mcdb: %d)",
+            decoderCounters.droppedBufferCount,
+            decoderCounters.maxConsecutiveDroppedBufferCount);
       }
     }
 
@@ -167,8 +223,17 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   }
 
   private String getFormatString(Format format) {
-    return format == null ? "<unknown>" :
-      "(id:" + format.id +") - " + format.width + "x" + format.height + " @ " + format.bitrate;
+    String display = "<unknown>";
+
+    if (format != null) {
+      int bps = format.bitrate;
+      float mbps = bps / 1_000_000.0f;
+
+      display = String.format(Locale.getDefault(),
+          "id:(%s) - %dx%d@%.3f", format.id, format.width, format.height, mbps);
+
+    }
+    return display;
   }
 
   protected String getPositionString() {
@@ -215,7 +280,7 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
         lastPositionReport = currentPosition;
         playbackRate = (float)positionChange / (float)timeChange;
         float trickSpeed = trickPlayControl.getSpeedFor(trickPlayControl.getCurrentTrickMode());
-        rateString = String.format("%.3f", trickSpeed) + "(" + String.format("%.3f", playbackRate) + ")";
+        rateString = String.format("%.3f (%.3f)", trickSpeed, playbackRate);
     }
     return rateString;
   }
@@ -255,7 +320,7 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
         resetStats();
       }
       lastPlayState = currentState;
-      stateView.setText("State: " + getPlayerState());
+      stateView.setText(getPlayerState());
       timedTextUpdate();
     }
   }
@@ -284,17 +349,46 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   @Override
   public void onBandwidthEstimate(EventTime eventTime, int totalLoadTimeMs, long totalBytesLoaded, long bitrateEstimate) {
 
+    float Mbps = (totalBytesLoaded * 8000.0f) / (totalLoadTimeMs * 1_000_000.0f);
+    float avgMbps = bitrateEstimate / 1_000_000.0f;
+
+    if (minBandwidth == 0.0f) {
+      minBandwidth = avgMbps;
+    } else {
+      minBandwidth = Math.min(minBandwidth, avgMbps);
+    }
+
+    bandwidthStats.setText(String.format(Locale.getDefault(), "%.2f / %.2f / %.2f Mbps", Mbps, avgMbps, minBandwidth));
+
+    bandwidthGraph.addDataPoint(avgMbps, bandwidthTraceNum);
+
+    if (lastDownstreamVideoFormat != null && lastDownstreamVideoFormat.bitrate != Format.NO_VALUE) {
+      int bps = lastDownstreamVideoFormat.bitrate;
+      float bitrateMbps = bps / 1_000_000.0f;
+
+      bandwidthGraph.addDataPoint(bitrateMbps, levelBitrateTraceNum);
+    } else {
+      bandwidthGraph.addDataPoint(0.0f, levelBitrateTraceNum);
+    }
+
   }
 
   @Override
   public void onLoadCompleted(EventTime eventTime, MediaSourceEventListener.LoadEventInfo loadEventInfo, MediaSourceEventListener.MediaLoadData mediaLoadData) {
+
+    // Set the playlist URL, if this is the first manifest load (timeline is empty)
+    boolean isEmpty = manifestUrl.getText().length() == 0;
+    if (isEmpty && mediaLoadData.dataType == C.DATA_TYPE_MANIFEST) {
+      manifestUrl.setText(loadEventInfo.dataSpec.uri.toString());
+    }
+
     Format format = mediaLoadData.trackFormat;
     if (isVideoTrack(mediaLoadData)) {
       levelSwitchCount += format.equals(lastLoadedVideoFormat) ? 0 : 1;
       lastLoadedVideoFormat = format;
 
       long kbps = (loadEventInfo.bytesLoaded / loadEventInfo.loadDurationMs) * 8;
-      loadingLevel.setText("Loading: " + getFormatString(format) + " - " + kbps + "kbps");
+      loadingLevel.setText(getFormatString(format) + " - " + kbps + "kbps");
     }
   }
 }

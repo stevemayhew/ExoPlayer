@@ -17,17 +17,18 @@ public interface TrickPlayEventListener {
      * can be determined via
      * {@link TrickPlayControl#getSpeedFor(TrickPlayControl.TrickMode)} and {}
      *
-     * @param isMetadataValid
+     * @param isMetadataValid - true if the playlist was loaded and presence of iframe track is known
      */
     default void playlistMetadataValid(boolean isMetadataValid) {}
 
     /**
-     * Triggered by the call to change the speed {@see TrickPlayControl#setTrickMode(TrickMode)}.
+     * Triggered by the call to change the speed {@link TrickPlayControl#setTrickMode(TrickPlayControl.TrickMode)}.
+     * or an exit from trick play because a seekable boundry was reached.
      *
      * Dispatched on the listeners Looper, so it will not re-entrantly call the caller of setTrickMode()
      *
-     * @param newMode
-     * @param prevMode
+     * @param newMode - the trickplay mode currently being played
+     * @param prevMode - the previous mode before the change
      */
     default void trickPlayModeChanged(TrickPlayControl.TrickMode newMode, TrickPlayControl.TrickMode prevMode) {}
 

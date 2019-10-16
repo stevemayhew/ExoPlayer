@@ -133,7 +133,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     activityView.addView(debugView);
 
     View debugContainer = debugView.findViewById(R.id.geek_stats);
-    geekStats = new GeekStatsOverlay(debugContainer);
+    geekStats = new GeekStatsOverlay(debugContainer, context);
 
     playerView = findViewById(R.id.player_view);
     playerView.setControllerVisibilityListener(this);
@@ -204,8 +204,18 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
      exoPlayerFactory.releasePlayer();
    }
 
+  @Override
+  protected void onDestroy() {
+    super.onDestroy();
+    if (playerView != null) {
+      playerView.setControllerVisibilityListener(null);
+      playerView = null;
+      exoPlayerFactory = null;
+      geekStats = null;
+    }
+  }
 
-  // PlayerView listener
+// PlayerView listener
 
   @Override
   public void onVisibilityChange(int visibility) {
@@ -221,140 +231,161 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
     TrickPlayControl trickPlayControl = exoPlayerFactory.getCurrentTrickPlayControl();
     if (trickPlayControl == null) {
-      return false;
-    }
+      handled = false;
+    } else {
 
-    DefaultTrackSelector trackSelector = exoPlayerFactory.getTrackSelector();
+      DefaultTrackSelector trackSelector = exoPlayerFactory.getTrackSelector();
 
-    if (event.getAction() == KeyEvent.ACTION_UP) {
-      int keyCode = event.getKeyCode();
-      switch (keyCode) {
+      if (event.getAction() == KeyEvent.ACTION_DOWN) {
+        int keyCode = event.getKeyCode();
 
-        case KeyEvent.KEYCODE_0:
-          if (! isShowingTrackSelectionDialog && TrackSelectionDialog.willHaveContent(trackSelector)) {
-            isShowingTrackSelectionDialog = true;
-            TrackSelectionDialog trackSelectionDialog =
-                TrackSelectionDialog.createForTrackSelector(
-                    trackSelector,
-                    /* onDismissListener= */
-                    dismissedDialog -> isShowingTrackSelectionDialog = false);
-            trackSelectionDialog.show(getSupportFragmentManager(), /* tag= */ null);
-          }
-          break;
+        switch (keyCode) {
 
-        case KeyEvent.KEYCODE_F11:
-          Intent intent = new Intent(Settings.ACTION_CAPTIONING_SETTINGS);
-          startActivityForResult(intent, 1);
-          handled = true;
-          break;
-
-//        case KeyEvent.KEYCODE_MEDIA_STEP_BACKWARD:
-//         case KeyEvent.KEYCODE_5:
-//           if (trickPlayControl.getCurrentTrickMode() == TrickPlayControl.TrickMode.NORMAL) {
-// //            player.seekTo(player.getContentPosition() - 2000);
-//             if (stepFrameNumber == C.INDEX_UNSET) {
-//               stepFrameNumber = 1;
-//             }
-//             if (! trickPlayControl.seekToNthPlayedTrickFrame(stepFrameNumber++)) {
-//               stepFrameNumber = C.INDEX_UNSET;
-//             }
-//           }
-//           break;
-
-        case KeyEvent.KEYCODE_MEDIA_STEP_FORWARD:
-          if (trickPlayControl.getCurrentTrickMode() == TrickPlayControl.TrickMode.NORMAL) {
-            SimpleExoPlayer player = exoPlayerFactory.getCurrentPlayer();
-            if (player != null) {
-              player.seekTo(player.getContentPosition() + 2000);
+          case KeyEvent.KEYCODE_0:
+            if (!isShowingTrackSelectionDialog && TrackSelectionDialog
+                .willHaveContent(trackSelector)) {
+              isShowingTrackSelectionDialog = true;
+              TrackSelectionDialog trackSelectionDialog =
+                  TrackSelectionDialog.createForTrackSelector(
+                      trackSelector,
+                      /* onDismissListener= */
+                      dismissedDialog -> isShowingTrackSelectionDialog = false);
+              trackSelectionDialog.show(getSupportFragmentManager(), /* tag= */ null);
             }
-          }
-          handled = true;
-          break;
+            handled = true;
+            break;
 
-        case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
-        case KeyEvent.KEYCODE_MEDIA_REWIND:
-          trickPlayControl.setTrickMode(nextTrickMode(trickPlayControl.getCurrentTrickMode(), keyCode));
-          handled = true;
-          break;
+          case KeyEvent.KEYCODE_F11:
+            Intent intent = new Intent(Settings.ACTION_CAPTIONING_SETTINGS);
+            startActivityForResult(intent, 1);
+            handled = true;
+            break;
 
-        case KeyEvent.KEYCODE_3:
-          trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FF1);
-          handled = true;
-          break;
+          //        case KeyEvent.KEYCODE_MEDIA_STEP_BACKWARD:
+          //         case KeyEvent.KEYCODE_5:
+          //           if (trickPlayControl.getCurrentTrickMode() == TrickPlayControl.TrickMode.NORMAL) {
+          // //            player.seekTo(player.getContentPosition() - 2000);
+          //             if (stepFrameNumber == C.INDEX_UNSET) {
+          //               stepFrameNumber = 1;
+          //             }
+          //             if (! trickPlayControl.seekToNthPlayedTrickFrame(stepFrameNumber++)) {
+          //               stepFrameNumber = C.INDEX_UNSET;
+          //             }
+          //           }
+          //           break;
 
-        case KeyEvent.KEYCODE_1:
-          trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FR1);
-          handled = true;
-          break;
+          case KeyEvent.KEYCODE_MEDIA_STEP_FORWARD:
+            if (trickPlayControl.getCurrentTrickMode() == TrickPlayControl.TrickMode.NORMAL) {
+              SimpleExoPlayer player = exoPlayerFactory.getCurrentPlayer();
+              if (player != null) {
+                player.seekTo(player.getContentPosition() + 2000);
+              }
+            }
+            handled = true;
+            break;
 
-        case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
-        case KeyEvent.KEYCODE_2:
-          trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.NORMAL);
-          handled = true;
-          break;
+          case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
+          case KeyEvent.KEYCODE_MEDIA_REWIND:
+            TrickPlayControl.TrickMode newMode = nextTrickMode(trickPlayControl.getCurrentTrickMode(), keyCode);
 
-        case KeyEvent.KEYCODE_6:
-          trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FF2);
-          handled = true;
-          break;
+            if (trickPlayControl.setTrickMode(newMode) >= 0) {
+              Log.d(TAG, "request to play trick-mode " + newMode + " succeeded");
+            } else {
+              Log.d(TAG, "request to play trick-mode " + newMode + " not possible");
+            }
+            handled = true;
+            break;
 
-        case KeyEvent.KEYCODE_4:
-          trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FR2);
-          handled = true;
-          break;
+          case KeyEvent.KEYCODE_3:
+            trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FF1);
+            handled = true;
+            break;
 
-        case KeyEvent.KEYCODE_5:
-          List<TrackInfo> audioTracks = exoPlayerFactory.getAvailableAudioTracks();
-          if (audioTracks.size() > 0) {
-            DialogFragment dialog =
-                TrackInfoSelectionDialog.createForChoices("Select Audio", audioTracks, exoPlayerFactory);
-            dialog.show(getSupportFragmentManager(), null);
-          }
-          break;
+          case KeyEvent.KEYCODE_1:
+            trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FR1);
+            handled = true;
+            break;
 
-        case KeyEvent.KEYCODE_8:
-          List<TrackInfo> textTracks = exoPlayerFactory.getAvailableTextTracks();
-          if (textTracks.size() > 0) {
-            DialogFragment dialog =
-                TrackInfoSelectionDialog.createForChoices("Select Text", textTracks, exoPlayerFactory);
-            dialog.show(getSupportFragmentManager(), null);
-          }
-          break;
+          case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+          case KeyEvent.KEYCODE_2:
+            if (trickPlayControl.getCurrentTrickMode() != TrickPlayControl.TrickMode.NORMAL) {
+              trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.NORMAL);
+              handled = true;
+            }
+            break;
 
-        case KeyEvent.KEYCODE_9:
-          trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FF3);
-          handled = true;
-          break;
+          case KeyEvent.KEYCODE_6:
+            trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FF2);
+            handled = true;
+            break;
 
-        case KeyEvent.KEYCODE_7:
-          trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FR3);
-          handled = true;
-          break;
+          case KeyEvent.KEYCODE_4:
+            trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FR2);
+            handled = true;
+            break;
 
-        case KeyEvent.KEYCODE_CHANNEL_DOWN:
-          if (channelUris != null) {
-            currentChannel = (currentChannel + (channelUris.length - 1)) % channelUris.length;
-            nextChannel = channelUris[currentChannel];
-            Log.d(TAG, "Channel change down to: " + nextChannel);
+          case KeyEvent.KEYCODE_5:
+            List<TrackInfo> audioTracks = exoPlayerFactory.getAvailableAudioTracks();
+            if (audioTracks.size() > 0) {
+              DialogFragment dialog =
+                  TrackInfoSelectionDialog
+                      .createForChoices("Select Audio", audioTracks, exoPlayerFactory);
+              dialog.show(getSupportFragmentManager(), null);
+            }
+            handled = true;
+            break;
 
-          }
-          break;
-        case KeyEvent.KEYCODE_CHANNEL_UP:
-          if (channelUris != null) {
-            currentChannel = (currentChannel + 1) % channelUris.length;
-            nextChannel = channelUris[currentChannel];
-            Log.d(TAG, "Channel change up to: " + nextChannel);
-          }
-          break;
+          case KeyEvent.KEYCODE_8:
+            List<TrackInfo> textTracks = exoPlayerFactory.getAvailableTextTracks();
+            if (textTracks.size() > 0) {
+              DialogFragment dialog =
+                  TrackInfoSelectionDialog
+                      .createForChoices("Select Text", textTracks, exoPlayerFactory);
+              dialog.show(getSupportFragmentManager(), null);
+            }
+            handled = true;
+            break;
+
+          case KeyEvent.KEYCODE_9:
+            trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FF3);
+            handled = true;
+            break;
+
+          case KeyEvent.KEYCODE_7:
+            trickPlayControl.setTrickMode(TrickPlayControl.TrickMode.FR3);
+            handled = true;
+            break;
+
+          case KeyEvent.KEYCODE_CHANNEL_DOWN:
+            if (channelUris != null) {
+              currentChannel = (currentChannel + (channelUris.length - 1)) % channelUris.length;
+              nextChannel = channelUris[currentChannel];
+              Log.d(TAG, "Channel change down to: " + nextChannel);
+            }
+            handled = true;
+            break;
+          case KeyEvent.KEYCODE_CHANNEL_UP:
+            if (channelUris != null) {
+              currentChannel = (currentChannel + 1) % channelUris.length;
+              nextChannel = channelUris[currentChannel];
+              Log.d(TAG, "Channel change up to: " + nextChannel);
+            }
+            handled = true;
+            break;
+
+          default:
+            handled = false;
+            break;
+        }
+
+        if (nextChannel != null) {
+
+          // TODO chunkless should come from a properties file (so we can switch it when it's supported)
+          boolean enableChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
+          exoPlayerFactory.playUrl(nextChannel, enableChunkless);
+        }
       }
-
-       if (nextChannel != null) {
-
-         // TODO chunkless should come from a properties file (so we can switch it when it's supported)
-         boolean enableChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
-         exoPlayerFactory.playUrl(nextChannel, enableChunkless);
-       }
-      }
+    }
 
     return handled || playerView.dispatchKeyEvent(event) || super.dispatchKeyEvent(event);
   }
@@ -408,7 +439,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
         break;
     }
 
-    Log.d(TAG, "Trickplay switch - current: " + currentMode + ", next: " + value);
+    Log.d(TAG, "Trickplay in currentMode: " + currentMode + ", next is: " + value);
 
     return value;
   }

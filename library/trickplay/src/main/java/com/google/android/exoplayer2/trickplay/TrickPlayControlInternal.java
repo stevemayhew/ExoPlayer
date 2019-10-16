@@ -15,7 +15,9 @@ public interface TrickPlayControlInternal extends TrickPlayControl {
   void addEventListenerInternal(TrickPlayEventListener eventListener);
 
   /**
-   * Remove previously added event listener from {@see #addEventListenerInternal}
+   * Remove previously added event listener from {@link #addEventListenerInternal}
+   *
+   * @param eventListener - listener to remove.
    */
   void removeEventListenerInternal(TrickPlayEventListener eventListener);
 }

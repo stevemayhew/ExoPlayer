@@ -36,9 +36,10 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle {
   protected MediaSource currentMediaSource;
 
   /**
+   * Construct the default implementation of {@link MediaSourceLifeCycle}
    *
-   * @param player
-   * @param context
+   * @param player - SimpleExoPlayer to build mediasources for
+   * @param context - android context
    */
   public DefaultMediaSourceLifeCycle(SimpleExoPlayer player, Context context) {
     this.player = player;
@@ -69,6 +70,7 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle {
    *
    * TODO - will need DRM type parameter to allow creating factory for VCAS
    *
+   * @return factory to produce DataSource objects.
    */
   protected DataSource.Factory buildDataSourceFactory() {
     String userAgent = getUserAgentPrefix();
