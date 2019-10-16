@@ -192,15 +192,6 @@ public class SimpleExoPlayerFactory implements
     TrickPlayControlFactory trickPlayControlFactory = new TrickPlayControlFactory();
     trickPlayControl = trickPlayControlFactory.createTrickPlayControl(trackSelector);
     RenderersFactory renderersFactory = trickPlayControl.createRenderersFactory(context);
-
-    // Test broken hydra settings
-    DefaultLoadControl dlc = new DefaultLoadControl.Builder()
-        .setBufferDurationsMs(DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
-                DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
-                1500,
-                DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS).createDefaultLoadControl();
-
-//    LoadControl loadControl = trickPlayControl.createLoadControl(dlc);
     LoadControl loadControl = trickPlayControl.createLoadControl(new DefaultLoadControl());
     player = ExoPlayerFactory.newSimpleInstance(context, renderersFactory, trackSelector, loadControl);
 

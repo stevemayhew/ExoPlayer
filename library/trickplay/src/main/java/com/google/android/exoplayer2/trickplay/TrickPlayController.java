@@ -689,7 +689,7 @@ class TrickPlayController implements TrickPlayControlInternal {
         TrickPlayDirection direction = directionForMode(requestedMode);
         switch (direction) {
             case FORWARD:
-                isPossible = (playbackPositionMs - lastSeekablePosition) <= 1000;
+                isPossible = (playbackPositionMs - lastSeekablePosition) <= 3000;
                 break;
 
             case REVERSE:
