@@ -110,7 +110,7 @@
                  android:layout_height="wrap_content"
                  android:layout_width="wrap_content"
                  android:layout_marginEnd="2dp"
-                 android:text="Download (Cur/Avg/Min):"/>
+                 android:text="Bandwidth (Avg/Min/Max):"/>
                <TextView style="@style/GeekStatsMetricText"
                  android:id="@+id/bandwidth_stats"
                  android:layout_alignParentStart="true"

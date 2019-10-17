@@ -373,7 +373,10 @@ public class EventLogger implements AnalyticsListener {
   @Override
   public void onBandwidthEstimate(
       EventTime eventTime, int totalLoadTimeMs, long totalBytesLoaded, long bitrateEstimate) {
-    logd(eventTime, "bandwidthEstimate", "Received BW Estimate.  Loaded Bytes: " + totalBytesLoaded + " bitrate: " + bitrateEstimate);
+    float Mbps = (totalBytesLoaded * 8000.0f) / (totalLoadTimeMs * 1_000_000.0f);
+    float avgMbps = bitrateEstimate / 1_000_000.0f;
+
+    logd(eventTime, "bandwidthEstimate", "Received BW Estimate.  Loaded Bytes: " + totalBytesLoaded + ", sample: " + Mbps + "(Mbps), estimate: " + avgMbps + "(Mbps)");
     // Do nothing.
   }
 

@@ -139,7 +139,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     playerView.setControllerVisibilityListener(this);
     playerView.requestFocus();
 
-    Locale current = getResources().getConfiguration().getLocales().get(0);
+    Locale current = Locale.getDefault();
 
     CaptioningManager captioningManager = (CaptioningManager) context.getSystemService(Context.CAPTIONING_SERVICE);
     captioningManager.addCaptioningChangeListener(captionChangeListener);
