@@ -86,7 +86,11 @@ public class SimpleExoPlayerFactory implements
 
   private MediaSourceLifeCycle mediaSourceLifeCycle;
 
-  private DefaultTrackSelector.Parameters lastParameters = new DefaultTrackSelector.ParametersBuilder().build();
+  /**
+   * Parameters are preserved across player create/destroy (Activity stop/start) to save track
+   * selection criteria.
+   */
+  private DefaultTrackSelector.Parameters currentParameters = new DefaultTrackSelector.ParametersBuilder().build();
 
   /**
    * Construct the factory.  This factory is intended to survive as a singleton for the entire lifecycle of
@@ -248,7 +252,7 @@ public class SimpleExoPlayerFactory implements
     int tunnelingSessionId = enableTunneling
             ? C.generateAudioSessionIdV21(context) : C.AUDIO_SESSION_ID_UNSET;
 
-    DefaultTrackSelector.ParametersBuilder builder = lastParameters.buildUpon();
+    DefaultTrackSelector.ParametersBuilder builder = currentParameters.buildUpon();
     builder.setTunnelingAudioSessionId(tunnelingSessionId);
 
     commitTrackSelectionParameters(builder);
@@ -268,7 +272,7 @@ public class SimpleExoPlayerFactory implements
    */
   public void setCloseCaption(boolean enable, @Nullable String preferLanguage) {
 
-    DefaultTrackSelector.ParametersBuilder builder = lastParameters.buildUpon();
+    DefaultTrackSelector.ParametersBuilder builder = currentParameters.buildUpon();
 
     /* Poorly authored metadata seems to leave off the language, this flag allows unknown
      * language to be selected if no track matches the preferred language.
@@ -296,31 +300,34 @@ public class SimpleExoPlayerFactory implements
    * @param preferedAudioLanguage - langauge string for audio (e.g. Locale.getDefault().getLanguage())
    */
   public void setPreferredAudioLanguage(String preferedAudioLanguage) {
-    DefaultTrackSelector.ParametersBuilder builder = lastParameters.buildUpon();
+    DefaultTrackSelector.ParametersBuilder builder = currentParameters.buildUpon();
     builder.setPreferredAudioLanguage(preferedAudioLanguage);
     commitTrackSelectionParameters(builder);
   }
 
   /**
-   * Get the last parameters for track selection.  This tracks any changes to the track selection
-   * by this objects track selection API methods, but <b>not</b> if {@link #getTrackSelector()} is used
+   * Get the current parameters for track selection.   These start out as matching
+   * {@link DefaultTrackSelector.Parameters#DEFAULT}, then any changes to the track selection
+   * by this objects track selection API methods updates them
+   * (NOTE values are <b>not</b> saved by any use of {@link #getTrackSelector()} to alter parameters)
    *
-   * TODO probably this API is not needed, better to code methods like {@link #setCloseCaption(boolean, String)}
-   *
-   * @return the last set of parameters set, or the defaults.  Preserved across player release {@link #releasePlayer()})
+   * @return the last set of parameters values, or the defaults.  Preserved across player release {@link #releasePlayer()})
    */
-  public DefaultTrackSelector.Parameters getLastParameters() {
-    return lastParameters;
+  public DefaultTrackSelector.Parameters getCurrentParameters() {
+    return currentParameters;
   }
 
   /**
-   * Update the last saved parameters with any external changes.  The preferred method to
-   * change track selection is using the API methods like {@link #setPreferredAudioLanguage(String)}
+   * Update the current parameters with any external changes.
+   *
+   * The preferred method is to use track selection API methods like {@link #setPreferredAudioLanguage(String)}.
+   * However if you do use {@link #getCurrentParameters()}, mutate them, then call this method, your
+   * mutations are merged into the parameters/
    *
    * @param parameters used to update the last saved parameters
    */
-  public void setLastParameters(DefaultTrackSelector.Parameters parameters) {
-    this.lastParameters = parameters.buildUpon().build();
+  public void setCurrentParameters(DefaultTrackSelector.Parameters parameters) {
+    this.currentParameters = parameters.buildUpon().build();
   }
 
   /**
@@ -468,7 +475,7 @@ public class SimpleExoPlayerFactory implements
    * Using higher level methods like {@link #setCloseCaption} is preferred, but this method is available
    * to allow clients to perform any track selections not supported by this class.
    *
-   * DEPPRECATED - use {@link #getLastParameters()} if something is not supported by the track control API in this class
+   * DEPPRECATED - use {@link #getCurrentParameters()} if something is not supported by the track control API in this class
    * @return the current track selector, this will only be available after {@link #createPlayer(boolean, boolean)} is called
    */
   @Deprecated
@@ -589,9 +596,9 @@ public class SimpleExoPlayerFactory implements
   }
 
   private void commitTrackSelectionParameters(DefaultTrackSelector.ParametersBuilder builder) {
-    lastParameters = builder.build();
+    currentParameters = builder.build();
     if (trackSelector != null) {
-      trackSelector.setParameters(lastParameters);
+      trackSelector.setParameters(currentParameters);
     }
   }
 
@@ -602,11 +609,11 @@ public class SimpleExoPlayerFactory implements
             ? C.generateAudioSessionIdV21(context) : C.AUDIO_SESSION_ID_UNSET;
 
     boolean usingSavedParameters =
-        ! lastParameters.equals(new DefaultTrackSelector.ParametersBuilder().build());
+        ! currentParameters.equals(new DefaultTrackSelector.ParametersBuilder().build());
 
     TrackSelection.Factory trackSelectionFactory =  new IFrameAwareAdaptiveTrackSelection.Factory();
     DefaultTrackSelector trackSelector = new DefaultTrackSelector(trackSelectionFactory);
-    DefaultTrackSelector.ParametersBuilder builder = lastParameters.buildUpon();
+    DefaultTrackSelector.ParametersBuilder builder = currentParameters.buildUpon();
 
     builder.setTunnelingAudioSessionId(tunnelingSessionId);
 
@@ -615,8 +622,8 @@ public class SimpleExoPlayerFactory implements
     if (usingSavedParameters) {
       builder.clearSelectionOverrides();
     }
-    lastParameters = builder.build();
-    trackSelector.setParameters(lastParameters);
+    currentParameters = builder.build();
+    trackSelector.setParameters(currentParameters);
     return trackSelector;
   }
 
