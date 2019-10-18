@@ -63,13 +63,16 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
   private Format lastLoadedVideoFormat;
   private Format lastDownstreamVideoFormat;
-  private float minBandwidth;
   private long lastPositionReport;
 
   // Statistic counters, reset on url change
   private long lastTimeUpdate;
   private int levelSwitchCount = 0;
   private int lastPlayState = Player.STATE_IDLE;
+  private float lastVideoDownloadbps;
+  private float minBandwidth = Float.MIN_VALUE;
+  private float maxBandwidth = Float.MAX_VALUE;
+
 
   public GeekStatsOverlay(View view, Context context, int updateInterval) {
     containingView = view;
@@ -81,7 +84,7 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
     bufferingGraph = view.findViewById(R.id.buffering_graph);
 
-    Color traceColor = Color.valueOf(context.getColor(R.color.colorBuffered));
+    int traceColor = containingView.getResources().getColor(R.color.colorBuffered);
     bufferingGraph.addTraceLine(traceColor, 0, 70);
 
     bufferingLevel = view.findViewById(R.id.buffering_level);
@@ -91,12 +94,12 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
     bandwidthGraph = view.findViewById(R.id.bandwidth_graph);
 
     // Add a line for current level bitrate (in Mbps) TODO - move to track select
-    traceColor = Color.valueOf(context.getColor(R.color.colorLevel));
+    traceColor = containingView.getResources().getColor(R.color.colorLevel);
     levelBitrateTraceNum =
         bandwidthGraph.addTraceLine(traceColor, 0, 30);
 
     // Add a line for current bandwidth bitrate (in Mbps)
-    traceColor = Color.valueOf(context.getColor(R.color.colorBandwidth));
+    traceColor = containingView.getResources().getColor(R.color.colorBandwidth);
     bandwidthTraceNum =
         bandwidthGraph.addTraceLine(traceColor, 0, 150);
 
@@ -176,8 +179,10 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
   private void resetStats() {
     levelSwitchCount = 0;
+    lastVideoDownloadbps = 0.0f;
     lastTimeUpdate = C.TIME_UNSET;
-    minBandwidth = 0.0f;
+    minBandwidth = Float.MIN_VALUE;
+    maxBandwidth = Float.MAX_VALUE;
     manifestUrl.setText("");
   }
 
@@ -349,16 +354,20 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   @Override
   public void onBandwidthEstimate(EventTime eventTime, int totalLoadTimeMs, long totalBytesLoaded, long bitrateEstimate) {
 
-    float Mbps = (totalBytesLoaded * 8000.0f) / (totalLoadTimeMs * 1_000_000.0f);
     float avgMbps = bitrateEstimate / 1_000_000.0f;
 
-    if (minBandwidth == 0.0f) {
+    if (minBandwidth == Float.MIN_VALUE) {
       minBandwidth = avgMbps;
     } else {
       minBandwidth = Math.min(minBandwidth, avgMbps);
     }
+    if (maxBandwidth == Float.MAX_VALUE) {
+      maxBandwidth = avgMbps;
+    } else {
+      maxBandwidth = Math.max(maxBandwidth, avgMbps);
+    }
 
-    bandwidthStats.setText(String.format(Locale.getDefault(), "%.2f / %.2f / %.2f Mbps", Mbps, avgMbps, minBandwidth));
+    bandwidthStats.setText(String.format(Locale.getDefault(), "%.2f / %.2f / %.2f Mbps", avgMbps, minBandwidth, maxBandwidth));
 
     bandwidthGraph.addDataPoint(avgMbps, bandwidthTraceNum);
 
@@ -384,6 +393,8 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
     Format format = mediaLoadData.trackFormat;
     if (isVideoTrack(mediaLoadData)) {
+      lastVideoDownloadbps = (loadEventInfo.bytesLoaded * 8_000.0f) / loadEventInfo.loadDurationMs;
+
       levelSwitchCount += format.equals(lastLoadedVideoFormat) ? 0 : 1;
       lastLoadedVideoFormat = format;
 

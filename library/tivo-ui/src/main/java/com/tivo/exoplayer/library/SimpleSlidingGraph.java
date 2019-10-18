@@ -29,7 +29,7 @@ public class SimpleSlidingGraph extends View implements Runnable {
     private float maxValue;
     private float currentX;
 
-    TraceLine(Color color, float minValue, float maxValue) {
+    TraceLine(int color, float minValue, float maxValue) {
       this.minValue = minValue;
       this.maxValue = maxValue;
       paint = new Paint();
@@ -37,7 +37,7 @@ public class SimpleSlidingGraph extends View implements Runnable {
       paint.setAntiAlias(true);
       paint.setStyle(Paint.Style.STROKE);
       paint.setStrokeWidth(2);
-      paint.setColor(color.toArgb());
+      paint.setColor(color);
       currentX = 0;
     }
 
@@ -110,7 +110,7 @@ public class SimpleSlidingGraph extends View implements Runnable {
     postDelayed(this, 1000);
   }
 
-  public int addTraceLine(Color color, float minValue, float maxValue) {
+  public int addTraceLine(int color, float minValue, float maxValue) {
     traces.add(new TraceLine(color, minValue, maxValue));
     return traces.size() - 1;
   }
