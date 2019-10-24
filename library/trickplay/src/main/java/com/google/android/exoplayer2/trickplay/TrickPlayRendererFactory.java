@@ -28,7 +28,6 @@ import java.util.logging.Logger;
 
 class TrickPlayRendererFactory extends DefaultRenderersFactory {
 
-  public static final String TAG = "TRICK-PLAY";
   private final TrickPlayController trickPlayController;
 
   public TrickPlayRendererFactory(Context context, TrickPlayController controller) {
@@ -66,6 +65,7 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
 
 
   private class TrickPlayAwareMediaCodecVideoRenderer extends MediaCodecVideoRenderer {
+    public static final String TAG = "TrickPlayAwareMediaCodecVideoRenderer";
 
     private TrickPlayController trickPlay;
 
@@ -141,7 +141,7 @@ class TrickPlayRendererFactory extends DefaultRenderersFactory {
       if (useTrickPlayRendering()) {
         long elapsedRealtimeNowUs = System.nanoTime() / 1000;
         boolean nextFrameIsDue = lastRenderTimeUs == C.TIME_UNSET || (elapsedRealtimeNowUs - lastRenderTimeUs) >= targetInterFrameTimeUs;
-        Log.d("TRICK-PLAY", "readSource() - formatRequired " + formatRequired + " currentFormat: " + formatHolder.format);
+//        Log.d(TAG, "readSource() - formatRequired " + formatRequired + " currentFormat: " + formatHolder.format);
 
         if (nextFrameIsDue) {
           result = super.readSource(formatHolder, buffer, formatRequired);
