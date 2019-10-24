@@ -20,15 +20,19 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.accessibility.CaptioningManager;
 import android.widget.Toast;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.DialogFragment;
+import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.demo.TrackSelectionDialog;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.trickplay.TrickPlayEventListener;
 import com.google.android.exoplayer2.ui.PlayerControlView;
 import com.google.android.exoplayer2.ui.PlayerView;
+import com.google.android.exoplayer2.ui.TimeBar;
 import com.google.android.exoplayer2.util.Util;
 import com.tivo.exoplayer.library.GeekStatsOverlay;
 import com.tivo.exoplayer.library.SimpleExoPlayerFactory;
@@ -113,6 +117,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
       exoPlayerFactory.setCloseCaption(enabled, null);
     }
   };
+  protected TimeBar timeBar;
 
   // Activity lifecycle
 
@@ -138,6 +143,9 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     playerView = findViewById(R.id.player_view);
     playerView.setControllerVisibilityListener(this);
     playerView.requestFocus();
+    timeBar = playerView.findViewById(R.id.exo_progress);
+    timeBar.setKeyTimeIncrement(10_000);
+
 
     Locale current = Locale.getDefault();
 
@@ -222,6 +230,40 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
   }
 
+  // Internal
+
+  /**
+   * Return the largest position value it is valid to seek to.
+   *
+   * @param player the current SimpleExoPlayer - if null return will be unset
+   * @return highest possible seekTo position or C.TIME_UNSET
+   */
+  private long getLargestSeekToPositionMs(@Nullable SimpleExoPlayer player) {
+    Timeline timeline = player == null ? Timeline.EMPTY : player.getCurrentTimeline();
+    long duration = C.TIME_UNSET;
+    if (! timeline.isEmpty()) {
+      Timeline.Window window = timeline.getWindow(player.getCurrentWindowIndex(), new Timeline.Window());
+      if (window.isDynamic) {
+        duration = window.defaultPositionUs;
+      } else {
+        duration = window.durationUs;
+      }
+    }
+
+    return C.usToMs(duration);
+  }
+
+
+  private boolean boundedSeekTo(SimpleExoPlayer player, long targetPositionMs) {
+    if (targetPositionMs != C.TIME_UNSET) {
+      targetPositionMs = Math.min(targetPositionMs, getLargestSeekToPositionMs(player));
+    }
+    targetPositionMs = Math.max(targetPositionMs, 0);
+    player.seekTo(targetPositionMs);
+    return true;
+  }
+
+
   // UI
 
   @Override
@@ -230,7 +272,9 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     Uri nextChannel = null;
 
     TrickPlayControl trickPlayControl = exoPlayerFactory.getCurrentTrickPlayControl();
-    if (trickPlayControl == null) {
+    SimpleExoPlayer player = exoPlayerFactory.getCurrentPlayer();
+
+    if (trickPlayControl == null || player == null) {
       handled = false;
     } else {
 
@@ -261,25 +305,35 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
             handled = true;
             break;
 
-          //        case KeyEvent.KEYCODE_MEDIA_STEP_BACKWARD:
-          //         case KeyEvent.KEYCODE_5:
-          //           if (trickPlayControl.getCurrentTrickMode() == TrickPlayControl.TrickMode.NORMAL) {
-          // //            player.seekTo(player.getContentPosition() - 2000);
-          //             if (stepFrameNumber == C.INDEX_UNSET) {
-          //               stepFrameNumber = 1;
-          //             }
-          //             if (! trickPlayControl.seekToNthPlayedTrickFrame(stepFrameNumber++)) {
-          //               stepFrameNumber = C.INDEX_UNSET;
-          //             }
-          //           }
-          //           break;
-
           case KeyEvent.KEYCODE_MEDIA_STEP_FORWARD:
+
+            long targetPositionMs = player.getCurrentPosition();
+
+            int currentPositionMinutes = (int) Math.floor(player.getCurrentPosition() / 60_000);
+            int minutesIntoPeriod = currentPositionMinutes % 15;
+            switch (trickPlayControl.getCurrentTrickDirection()) {
+              case FORWARD:
+                targetPositionMs = (currentPositionMinutes + (15 - minutesIntoPeriod)) * 60_000;
+                break;
+
+              case REVERSE:
+                targetPositionMs = (currentPositionMinutes - (15 - minutesIntoPeriod)) * 60_000;
+                break;
+
+              case NONE:
+                targetPositionMs = player.getCurrentPosition() + 20_000;
+                break;
+            }
+
+            boundedSeekTo(player, targetPositionMs);
+
+            handled = true;
+
+            break;
+
+          case KeyEvent.KEYCODE_MEDIA_STEP_BACKWARD:
             if (trickPlayControl.getCurrentTrickMode() == TrickPlayControl.TrickMode.NORMAL) {
-              SimpleExoPlayer player = exoPlayerFactory.getCurrentPlayer();
-              if (player != null) {
-                player.seekTo(player.getContentPosition() + 2000);
-              }
+                boundedSeekTo(player,player.getContentPosition() - 20_000);
             }
             handled = true;
             break;
@@ -373,6 +427,12 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
             handled = true;
             break;
 
+          case KeyEvent.KEYCODE_LAST_CHANNEL:
+              Timeline timeline = player.getCurrentTimeline();
+              if (! timeline.isEmpty()) {
+                Timeline.Window window = timeline.getWindow(player.getCurrentWindowIndex(), new Timeline.Window());
+                boundedSeekTo(player,getLargestSeekToPositionMs(player) - 3000);
+              }
           default:
             handled = false;
             break;
@@ -390,6 +450,10 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     return handled || playerView.dispatchKeyEvent(event) || super.dispatchKeyEvent(event);
   }
 
+  @Override
+  public boolean onKeyLongPress(int keyCode, KeyEvent event) {
+    return super.onKeyLongPress(keyCode, event);
+  }
 
   /**
    * Get the UX expected trick mode if sequencing through the modes with a single media
@@ -400,7 +464,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
    * @return next TrickMode to set
    */
   private static TrickPlayControl.TrickMode nextTrickMode(TrickPlayControl.TrickMode currentMode, int keyCode) {
-    TrickPlayControl.TrickMode value = TrickPlayControl.TrickMode.NORMAL;
+    TrickPlayControl.TrickMode value = TrickPlayControl.TrickMode.FF3;
 
     switch (keyCode) {
       case KeyEvent.KEYCODE_MEDIA_PLAY:
@@ -417,7 +481,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
           case FF2:
             value = TrickPlayControl.TrickMode.FF3;
             break;
-          default:    // Others go back to normal speed
+          default:    // FF3 keeps going.
             break;
         }
         break;
@@ -433,7 +497,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
           case FR2:
             value = TrickPlayControl.TrickMode.FR3;
             break;
-          default:    // Others go back to normal speed
+          default:    // FF3 keeps going.
             break;
         }
         break;
@@ -478,6 +542,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     exoPlayerFactory.setTunnelingMode(enableTunneling);
 
     if (uris.length > 0) {
+      Log.d(TAG, "calling playUrl - " + uris[0]);
       // TODO chunkless should come from a properties file (so we can switch it when it's supported)
       boolean enableChunkless = getIntent().getBooleanExtra(CHUNKLESS_PREPARE, false);
       exoPlayerFactory.playUrl(uris[0], enableChunkless);
