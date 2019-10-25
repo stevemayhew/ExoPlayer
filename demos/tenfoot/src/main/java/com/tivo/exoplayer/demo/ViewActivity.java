@@ -20,7 +20,6 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.accessibility.CaptioningManager;
 import android.widget.Toast;
-import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.DialogFragment;
 import com.google.android.exoplayer2.C;
@@ -232,31 +231,11 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
   // Internal
 
-  /**
-   * Return the largest position value it is valid to seek to.
-   *
-   * @param player the current SimpleExoPlayer - if null return will be unset
-   * @return highest possible seekTo position or C.TIME_UNSET
-   */
-  private long getLargestSeekToPositionMs(@Nullable SimpleExoPlayer player) {
-    Timeline timeline = player == null ? Timeline.EMPTY : player.getCurrentTimeline();
-    long duration = C.TIME_UNSET;
-    if (! timeline.isEmpty()) {
-      Timeline.Window window = timeline.getWindow(player.getCurrentWindowIndex(), new Timeline.Window());
-      if (window.isDynamic) {
-        duration = window.defaultPositionUs;
-      } else {
-        duration = window.durationUs;
-      }
-    }
-
-    return C.usToMs(duration);
-  }
-
-
-  private boolean boundedSeekTo(SimpleExoPlayer player, long targetPositionMs) {
+  private boolean boundedSeekTo(SimpleExoPlayer player,
+      TrickPlayControl trickPlayControl,
+      long targetPositionMs) {
     if (targetPositionMs != C.TIME_UNSET) {
-      targetPositionMs = Math.min(targetPositionMs, getLargestSeekToPositionMs(player));
+      targetPositionMs = Math.min(targetPositionMs, trickPlayControl.getLargestSafeSeekPositionMs());
     }
     targetPositionMs = Math.max(targetPositionMs, 0);
     player.seekTo(targetPositionMs);
@@ -325,7 +304,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
                 break;
             }
 
-            boundedSeekTo(player, targetPositionMs);
+            boundedSeekTo(player, trickPlayControl, targetPositionMs);
 
             handled = true;
 
@@ -333,7 +312,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
 
           case KeyEvent.KEYCODE_MEDIA_STEP_BACKWARD:
             if (trickPlayControl.getCurrentTrickMode() == TrickPlayControl.TrickMode.NORMAL) {
-                boundedSeekTo(player,player.getContentPosition() - 20_000);
+                boundedSeekTo(player, trickPlayControl, player.getContentPosition() - 20_000);
             }
             handled = true;
             break;
@@ -431,7 +410,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
               Timeline timeline = player.getCurrentTimeline();
               if (! timeline.isEmpty()) {
                 Timeline.Window window = timeline.getWindow(player.getCurrentWindowIndex(), new Timeline.Window());
-                boundedSeekTo(player,getLargestSeekToPositionMs(player) - 3000);
+                boundedSeekTo(player, trickPlayControl , trickPlayControl.getLargestSafeSeekPositionMs() - 3000);
               }
           default:
             handled = false;

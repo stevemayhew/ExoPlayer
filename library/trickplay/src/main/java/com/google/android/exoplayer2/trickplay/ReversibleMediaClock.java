@@ -64,7 +64,7 @@ class ReversibleMediaClock implements MediaClock {
         } else {
             positionUs -= playbackParameters.getMediaTimeUsForPlayoutTimeMs(elapsedSinceBaseMs);
         }
-        return positionUs;
+        return Math.max(0, positionUs);
     }
 
     @Override

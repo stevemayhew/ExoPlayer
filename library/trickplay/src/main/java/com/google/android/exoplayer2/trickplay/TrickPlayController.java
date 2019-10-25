@@ -4,8 +4,6 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Message;
-import android.os.SystemClock;
-import android.util.Printer;
 import android.view.Surface;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -17,8 +15,6 @@ import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.util.MimeTypes;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -331,8 +327,7 @@ class TrickPlayController implements TrickPlayControlInternal {
                 switch (msg.what) {
                     case MSG_TRICKPLAY_STARTSEEK:
                         long contentPosition = player.getContentPosition();
-                        seekTargetMs = C.usToMs(currentMediaClock.getPositionUs());
-
+                        seekTargetMs = Math.min(C.usToMs(currentMediaClock.getPositionUs()), getLargestSafeSeekPositionMs());
 
                         Log.d(TAG, "handleMessage STARTSEEK - mode " + currentTrickMode + " position: "
                             + contentPosition + " request position " + seekTargetMs + " timeSinceLastRender: " + timeSinceLastRender + " delta: " + (
@@ -496,6 +491,18 @@ class TrickPlayController implements TrickPlayControlInternal {
             }
         }
         return lastRendersCount;
+    }
+
+    @Override
+    public long getLargestSafeSeekPositionMs() {
+        Timeline timeline = player == null ? Timeline.EMPTY : player.getCurrentTimeline();
+        long duration = C.TIME_UNSET;
+        if (! timeline.isEmpty()) {
+            Timeline.Window window = new Timeline.Window();
+            timeline.getWindow(player.getCurrentWindowIndex(), window);
+            duration = C.usToMs(window.isDynamic ? window.defaultPositionUs : window.durationUs);
+        }
+        return duration;
     }
 
     @Override
