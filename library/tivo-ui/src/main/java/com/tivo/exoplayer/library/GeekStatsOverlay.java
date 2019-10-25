@@ -1,7 +1,6 @@
 package com.tivo.exoplayer.library;
 
 import android.content.Context;
-import android.graphics.Color;
 import android.view.View;
 import android.widget.TextView;
 import androidx.annotation.Nullable;
@@ -16,8 +15,11 @@ import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.MediaSourceEventListener;
 import com.google.android.exoplayer2.trickplay.TrickPlayControl;
 import com.google.android.exoplayer2.util.Log;
+import com.google.android.exoplayer2.util.MimeTypes;
+import com.google.android.exoplayer2.util.Util;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.time.chrono.MinguoChronology;
 import java.util.Date;
 import java.util.Locale;
 
@@ -55,7 +57,8 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
   private TextView stateView;
   private TextView currentTimeView;
-  private TextView currentLevel;
+  private TextView currentVideoTrack;
+  private final TextView currentAudioTrack;
   private TextView loadingLevel;
   private final TextView playbackRate;
 
@@ -63,6 +66,7 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
   private Format lastLoadedVideoFormat;
   private Format lastDownstreamVideoFormat;
+  private Format lastDownstreamAudioFormat;
   private long lastPositionReport;
 
   // Statistic counters, reset on url change
@@ -76,7 +80,8 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
   public GeekStatsOverlay(View view, Context context, int updateInterval) {
     containingView = view;
-    currentLevel = view.findViewById(R.id.current_level);
+    currentVideoTrack = view.findViewById(R.id.video_track);
+    currentAudioTrack = view.findViewById(R.id.audio_track);
     loadingLevel = view.findViewById(R.id.loading_level);
     stateView = view.findViewById(R.id.current_state);
     currentTimeView = view.findViewById(R.id.current_time);
@@ -158,7 +163,8 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
 
   private void timedTextUpdate() {
     currentTimeView.setText(getPositionString());
-    currentLevel.setText(getPlayingLevel());
+    currentVideoTrack.setText(getPlayingVideoTrack());
+    currentAudioTrack.setText(getPlayingAudioTrack());
     playbackRate.setText(getPlaybackRateString());
 
     float buffered = getBufferedSeconds();
@@ -207,24 +213,50 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
     return state;
   }
 
-  protected String getPlayingLevel() {
-    String level = "<unknown>";
+  private CharSequence getPlayingVideoTrack() {
+    String trackInfo = "V: ";
 
-    if (player != null) {
+    if (player == null) {
+      trackInfo += "<unknown>";
+    } else {
       Format format = lastDownstreamVideoFormat
           == null ? player.getVideoFormat() : lastDownstreamVideoFormat;
-      DecoderCounters decoderCounters = player.getVideoDecoderCounters();
 
-      level = getFormatString(format) + " - lvl chg: " + levelSwitchCount + " ";
+      trackInfo += getFormatString(format) + " - abr: " + levelSwitchCount + " ";
 
-      if (decoderCounters != null) {
-        level += String.format(Locale.getDefault(), "(db:%d mcdb: %d)",
-            decoderCounters.droppedBufferCount,
-            decoderCounters.maxConsecutiveDroppedBufferCount);
-      }
+      trackInfo += getDecoderCountersString(player.getVideoDecoderCounters());
     }
 
-    return level;
+    return trackInfo;
+  }
+
+
+  private CharSequence getPlayingAudioTrack() {
+    String trackInfo = "A: ";
+
+    if (player == null) {
+      trackInfo += "<unknown>";
+    } else {
+      Format format =
+          lastDownstreamAudioFormat == null ? player.getAudioFormat() : lastDownstreamAudioFormat;
+      DecoderCounters decoderCounters = player.getAudioDecoderCounters();
+
+      trackInfo += getFormatString(format) + " " + getDecoderCountersString(decoderCounters);
+    }
+    return trackInfo;
+  }
+
+
+  private String getDecoderCountersString(DecoderCounters decoderCounters) {
+    String value = "";
+    if (decoderCounters != null) {
+      value += String.format(Locale.getDefault(), "(qib:%d db:%d mcdb:%d r:%d)",
+          decoderCounters.inputBufferCount,
+          decoderCounters.droppedBufferCount,
+          decoderCounters.maxConsecutiveDroppedBufferCount,
+          decoderCounters.renderedOutputBufferCount);
+    }
+    return value;
   }
 
   private String getFormatString(Format format) {
@@ -234,8 +266,23 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
       int bps = format.bitrate;
       float mbps = bps / 1_000_000.0f;
 
-      display = String.format(Locale.getDefault(),
-          "id:(%s) - %dx%d@%.3f", format.id, format.width, format.height, mbps);
+      if (isVideoFormat(format)) {
+        if (bps == -1) {
+          display = String.format(Locale.getDefault(),
+              "id:(%s) - %dx%d@<unk>", format.id, format.width, format.height);
+        } else {
+          display = String.format(Locale.getDefault(),
+              "id:(%s) - %dx%d@%.3f", format.id, format.width, format.height, mbps);
+        }
+      } else if (isAudioOnlyFormat(format)) {
+        if (bps == -1) {
+          display = String.format(Locale.getDefault(),
+              "id:(%.10s) - <unk>", format.id);
+        } else {
+          display = String.format(Locale.getDefault(),
+              "id:(%.10s) - %.3f", format.id, mbps);
+        }
+      }
 
     }
     return display;
@@ -304,8 +351,30 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   }
 
   private boolean isVideoTrack(MediaSourceEventListener.MediaLoadData loadData) {
-    return loadData.trackFormat != null && (loadData.trackType == C.TRACK_TYPE_VIDEO || loadData.trackFormat.width > 0);
+    return  loadData.trackType == C.TRACK_TYPE_VIDEO || isVideoFormat(loadData.trackFormat);
   }
+
+  private boolean isAudioOnlyTrack(MediaSourceEventListener.MediaLoadData loadData) {
+    return loadData.trackType == C.TRACK_TYPE_AUDIO || isAudioOnlyFormat(loadData.trackFormat);
+  }
+
+  private boolean isVideoFormat(Format format) {
+    boolean isVideo = false;
+    if (format != null) {
+      isVideo = format.height > 0 || MimeTypes.getVideoMediaMimeType(format.codecs) != null;
+    }
+    return isVideo;
+  }
+
+  private boolean isAudioOnlyFormat(Format format) {
+    boolean isAudioOnly = false;
+    if (format != null) {
+      String[] codecs = Util.splitCodecs(format.codecs);
+      isAudioOnly = codecs.length == 1 && MimeTypes.isAudio(MimeTypes.getMediaMimeType(codecs[0]));
+    }
+    return isAudioOnly;
+  }
+
 
   // Timer callback
 
@@ -334,6 +403,8 @@ public class GeekStatsOverlay implements AnalyticsListener, Runnable {
   public void onDownstreamFormatChanged(EventTime eventTime, MediaSourceEventListener.MediaLoadData mediaLoadData) {
     if (isVideoTrack(mediaLoadData)) {
       lastDownstreamVideoFormat = mediaLoadData.trackFormat;
+    } else if (isAudioOnlyTrack(mediaLoadData)) {
+      lastDownstreamAudioFormat = mediaLoadData.trackFormat;
     }
   }
 
