@@ -61,7 +61,7 @@ public class SimpleExoPlayerFactory implements
   private final Context context;
 
   /**
-   * Reference to the current created SimpleExoPlayer,  The {@link #createPlayer(boolean)} creates
+   * Reference to the current created SimpleExoPlayer,  The {@link #createPlayer(boolean, boolean)} creates
    * this.  Access it via {@link #getCurrentPlayer()}
    */
   @Nullable
@@ -71,30 +71,39 @@ public class SimpleExoPlayerFactory implements
   private TrickPlayControl trickPlayControl;
 
   /**
-   * Track selector used by the player.  The particular instance has knowledge of IFrame playlists
-   * Reference is always available to the client of this library, use {@link #getTrackSelector()}
+   * Track selector used by the player.  The particular instance extends the {@link DefaultTrackSelector}
+   * and has knowledge of IFrame playlists
    *
-   * This factory provides convience methods to perform common track selection operations (change language,
-   * enable / disable captions, etc).
+   * This factory provides convenience methods to perform common track selection operations (change language,
+   * enable / disable captions, etc).  This track selector is avaliable to clients, but is only
+   * really visible so it can be used in the test player's debug track selection dialog.  It will
+   * be discarded when the actvitiy stops the player ({@link #releasePlayer()} is called).
+   *
+   * Any previous parameter selections are presev
    */
-  private final DefaultTrackSelector trackSelector;
+  @Nullable
+  private DefaultTrackSelector trackSelector;
 
   private MediaSourceLifeCycle mediaSourceLifeCycle;
+
+  /**
+   * Parameters are preserved across player create/destroy (Activity stop/start) to save track
+   * selection criteria.
+   */
+  private DefaultTrackSelector.Parameters currentParameters = new DefaultTrackSelector.ParametersBuilder().build();
 
   /**
    * Construct the factory.  This factory is intended to survive as a singleton for the entire lifecycle of
    * the application (create to destroy).  Note that it holds references to the SimpleExoPlayer it creates,
    * so calling {@link #releasePlayer()} is recommended if the application is stopped.
    *
-   * This creates a DefaultTrackSelector with the default tunneling mode.  Use the {@link #createPlayer(boolean)}
+   * This creates a DefaultTrackSelector with the default tunneling mode.  Use the {@link #createPlayer(boolean, boolean)}
    * method to create the player.
    *
    * @param context - android ApplicationContext
-   * @param defaultTunneling - default track selection to prefer tunneling (can turn this off {@link #setTunnelingMode(boolean)}}
    */
-  public SimpleExoPlayerFactory(Context context, boolean defaultTunneling) {
+  public SimpleExoPlayerFactory(Context context) {
     this.context = context;
-    trackSelector = createTrackSelector(defaultTunneling, context);
   }
 
 
@@ -172,7 +181,18 @@ public class SimpleExoPlayerFactory implements
       }
       player = null;
       mediaSourceLifeCycle = null;
+      trackSelector = null;
     }
+  }
+
+  /**
+   * Create a new {@link SimpleExoPlayer} with the common defaults (play when ready, no
+   * tunneling)
+   *
+   * @return the newly created player.  Also always available via {@link #getCurrentPlayer()}
+   */
+  public SimpleExoPlayer createPlayer() {
+    return createPlayer(true, false);
   }
 
   /**
@@ -181,14 +201,16 @@ public class SimpleExoPlayerFactory implements
    * Call this when your application is started.
    *
    * @param playWhenReady sets the play when ready flag.
+   * @param defaultTunneling - default track selection to prefer tunneling (can turn this off {@link #setTunnelingMode(boolean)}}
    * @return the newly created player.  Also always available via {@link #getCurrentPlayer()}
    */
   @CallSuper
-  public SimpleExoPlayer createPlayer(boolean playWhenReady) {
+  public SimpleExoPlayer createPlayer(boolean playWhenReady, boolean defaultTunneling) {
     if (player != null) {
       releasePlayer();
     }
 
+    trackSelector = createTrackSelector(defaultTunneling, context);
     TrickPlayControlFactory trickPlayControlFactory = new TrickPlayControlFactory();
     trickPlayControl = trickPlayControlFactory.createTrickPlayControl(trackSelector);
     RenderersFactory renderersFactory = trickPlayControl.createRenderersFactory(context);
@@ -206,7 +228,7 @@ public class SimpleExoPlayerFactory implements
 
   /**
    * Start playback of the specified URL on the current ExoPlayer.  Must have previously
-   * called {@link #createPlayer(boolean)}
+   * called {@link #createPlayer(boolean, boolean)}
    *
    * @param url - URL to play
    * @param enableChunkless - flag to enable chunkless prepare, TODO - will make this default
@@ -218,7 +240,11 @@ public class SimpleExoPlayerFactory implements
   // Track Selection
 
   /**
-   * Re-run track selection updating the tunneling state as requested.
+   * Updates track selection to prefer tunneling or regular video pipeline,
+   * this can be called before the player is created.  If the player is
+   * created it will force an immediate track selection.
+   *
+   * Note, this setting persists across player create/destroy
    *
    * @param enableTunneling - true to prefer tunneled decoder (if available)
    */
@@ -226,10 +252,10 @@ public class SimpleExoPlayerFactory implements
     int tunnelingSessionId = enableTunneling
             ? C.generateAudioSessionIdV21(context) : C.AUDIO_SESSION_ID_UNSET;
 
-    DefaultTrackSelector.Parameters parameters = trackSelector.buildUponParameters()
-        .setTunnelingAudioSessionId(tunnelingSessionId)
-        .build();
-    trackSelector.setParameters(parameters);
+    DefaultTrackSelector.ParametersBuilder builder = currentParameters.buildUpon();
+    builder.setTunnelingAudioSessionId(tunnelingSessionId);
+
+    commitTrackSelectionParameters(builder);
   }
 
   /**
@@ -246,7 +272,7 @@ public class SimpleExoPlayerFactory implements
    */
   public void setCloseCaption(boolean enable, @Nullable String preferLanguage) {
 
-    DefaultTrackSelector.ParametersBuilder builder = trackSelector.buildUponParameters();
+    DefaultTrackSelector.ParametersBuilder builder = currentParameters.buildUpon();
 
     /* Poorly authored metadata seems to leave off the language, this flag allows unknown
      * language to be selected if no track matches the preferred language.
@@ -265,8 +291,7 @@ public class SimpleExoPlayerFactory implements
 
     builder.setDisabledTextTrackSelectionFlags(maskFlags);
 
-
-    trackSelector.setParameters(builder.build());
+    commitTrackSelectionParameters(builder);
   }
 
   /**
@@ -275,9 +300,34 @@ public class SimpleExoPlayerFactory implements
    * @param preferedAudioLanguage - langauge string for audio (e.g. Locale.getDefault().getLanguage())
    */
   public void setPreferredAudioLanguage(String preferedAudioLanguage) {
-    DefaultTrackSelector.ParametersBuilder builder = trackSelector.buildUponParameters();
+    DefaultTrackSelector.ParametersBuilder builder = currentParameters.buildUpon();
     builder.setPreferredAudioLanguage(preferedAudioLanguage);
-    trackSelector.setParameters(builder.build());
+    commitTrackSelectionParameters(builder);
+  }
+
+  /**
+   * Get the current parameters for track selection.   These start out as matching
+   * {@link DefaultTrackSelector.Parameters#DEFAULT}, then any changes to the track selection
+   * by this objects track selection API methods updates them
+   * (NOTE values are <b>not</b> saved by any use of {@link #getTrackSelector()} to alter parameters)
+   *
+   * @return the last set of parameters values, or the defaults.  Preserved across player release {@link #releasePlayer()})
+   */
+  public DefaultTrackSelector.Parameters getCurrentParameters() {
+    return currentParameters;
+  }
+
+  /**
+   * Update the current parameters with any external changes.
+   *
+   * The preferred method is to use track selection API methods like {@link #setPreferredAudioLanguage(String)}.
+   * However if you do use {@link #getCurrentParameters()}, mutate them, then call this method, your
+   * mutations are merged into the parameters/
+   *
+   * @param parameters used to update the last saved parameters
+   */
+  public void setCurrentParameters(DefaultTrackSelector.Parameters parameters) {
+    this.currentParameters = parameters.buildUpon().build();
   }
 
   /**
@@ -337,7 +387,8 @@ public class SimpleExoPlayerFactory implements
 
   /**
    * Force select the track specified, overriding any constraint based selection or any previous
-   * selection.
+   * selection.  NOTE this requires the player has been created (after {@link #createPlayer()} has
+   * been called and before {@link #releasePlayer()})
    *
    * @param trackInfo the {@link TrackInfo} for the track to select (the {@link Format} keys selection)
    * @return true if the track with the indicated Format was found and selected.
@@ -363,7 +414,7 @@ public class SimpleExoPlayerFactory implements
               DefaultTrackSelector.ParametersBuilder builder = trackSelector.buildUponParameters();
               builder.clearSelectionOverrides(rendererIndex);
               builder.setSelectionOverride(rendererIndex, rendererTrackGroups, override);
-              trackSelector.setParameters(builder.build());
+              commitTrackSelectionParameters(builder);
               wasSelected =  true;
             }
           }
@@ -424,8 +475,10 @@ public class SimpleExoPlayerFactory implements
    * Using higher level methods like {@link #setCloseCaption} is preferred, but this method is available
    * to allow clients to perform any track selections not supported by this class.
    *
-   * @return the current track selector
+   * DEPPRECATED - use {@link #getCurrentParameters()} if something is not supported by the track control API in this class
+   * @return the current track selector, this will only be available after {@link #createPlayer(boolean, boolean)} is called
    */
+  @Deprecated
   public DefaultTrackSelector getTrackSelector() {
     return trackSelector;
   }
@@ -542,20 +595,35 @@ public class SimpleExoPlayerFactory implements
     return handled;
   }
 
+  private void commitTrackSelectionParameters(DefaultTrackSelector.ParametersBuilder builder) {
+    currentParameters = builder.build();
+    if (trackSelector != null) {
+      trackSelector.setParameters(currentParameters);
+    }
+  }
+
   private DefaultTrackSelector createTrackSelector(boolean enableTunneling, Context context) {
     // Get a builder with current parameters then set/clear tunnling based on the intent
     //
     int tunnelingSessionId = enableTunneling
             ? C.generateAudioSessionIdV21(context) : C.AUDIO_SESSION_ID_UNSET;
 
-    DefaultTrackSelector.Parameters trackSelectorParameters = new DefaultTrackSelector.ParametersBuilder().build();
+    boolean usingSavedParameters =
+        ! currentParameters.equals(new DefaultTrackSelector.ParametersBuilder().build());
 
     TrackSelection.Factory trackSelectionFactory =  new IFrameAwareAdaptiveTrackSelection.Factory();
     DefaultTrackSelector trackSelector = new DefaultTrackSelector(trackSelectionFactory);
-    trackSelectorParameters = trackSelectorParameters.buildUpon()
-            .setTunnelingAudioSessionId(tunnelingSessionId)
-            .build();
-    trackSelector.setParameters(trackSelectorParameters);
+    DefaultTrackSelector.ParametersBuilder builder = currentParameters.buildUpon();
+
+    builder.setTunnelingAudioSessionId(tunnelingSessionId);
+
+    // Selection overrides can't persist across player rebuild, they are track index based
+    //
+    if (usingSavedParameters) {
+      builder.clearSelectionOverrides();
+    }
+    currentParameters = builder.build();
+    trackSelector.setParameters(currentParameters);
     return trackSelector;
   }
 

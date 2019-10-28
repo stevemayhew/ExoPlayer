@@ -127,7 +127,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     Context context = getApplicationContext();
 
     SimpleExoPlayerFactory.initializeLogging(context, com.google.android.exoplayer2.util.Log.LOG_LEVEL_INFO);
-    exoPlayerFactory = new SimpleExoPlayerFactory(context, false);
+    exoPlayerFactory = new SimpleExoPlayerFactory(context);
 
     LayoutInflater inflater = LayoutInflater.from(context);
     ViewGroup activityView = (ViewGroup) inflater.inflate(R.layout.view_activity, null);
@@ -172,7 +172,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
     SimpleExoPlayerFactory.initializeLogging(getApplicationContext(), com.google.android.exoplayer2.util.Log.LOG_LEVEL_INFO);
 
 
-    SimpleExoPlayer player = exoPlayerFactory.createPlayer(true);
+    SimpleExoPlayer player = exoPlayerFactory.createPlayer(true, false);
 
     TrickPlayControl trickPlayControl = exoPlayerFactory.getCurrentTrickPlayControl();
     trickPlayControl.addEventListener(new TrickPlayEventListener() {
@@ -265,7 +265,7 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
         switch (keyCode) {
 
           case KeyEvent.KEYCODE_0:
-            if (!isShowingTrackSelectionDialog && TrackSelectionDialog
+            if (!isShowingTrackSelectionDialog && trackSelector != null && TrackSelectionDialog
                 .willHaveContent(trackSelector)) {
               isShowingTrackSelectionDialog = true;
               TrackSelectionDialog trackSelectionDialog =
