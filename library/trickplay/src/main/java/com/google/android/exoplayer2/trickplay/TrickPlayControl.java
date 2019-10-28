@@ -5,6 +5,7 @@ import android.content.Context;
 import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.ExoPlayerFactory;
 import com.google.android.exoplayer2.LoadControl;
+import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
@@ -48,11 +49,25 @@ public interface TrickPlayControl {
     void setPlayer(SimpleExoPlayer player);
 
     /**
+     * Remove previous set {@link #setPlayer(SimpleExoPlayer)} reference.  Once this is called
+     * then this {@link TrickPlayControl} object is inert until {@link #setPlayer(SimpleExoPlayer)}
+     * is called again.
+     */
+    void removePlayerReference();
+
+    /**
      * Get the current playing mode.
      *
      * @return TrickMode that is currently playing.
      */
     TrickMode getCurrentTrickMode();
+
+    /**
+     * Returns the direction of the current trick-play mode ({@link TrickPlayDirection}.
+     *
+     * @return current direction (forward, reverse or none (Normal speed) {@link TrickPlayControl#}
+     */
+    TrickPlayDirection getCurrentTrickDirection();
 
     /**
      * If the trickplay event has signaled metadata is valid or {@link #isMetadataValid()} is
@@ -90,6 +105,18 @@ public interface TrickPlayControl {
      * @return number of saved trick-play frame times, or -1 if setting to fast play fails.
      */
     int setTrickMode(TrickMode newMode);
+
+    /**
+     * Return the largest position value it that is valid to pass to the player's
+     * {@link Player#seekTo(long)} API without exceeding the resonable buffer prior
+     * to the live edge or reaching the end of media for VOD.
+     *
+     * While not technically part of trickplay control this API is used internally as well
+     * to avoid passing the live edge during trickplay.
+     *
+     * @return highest possible seekTo position or C.TIME_UNSET
+     */
+    long getLargestSafeSeekPositionMs();
 
     /**
      * Seeks to the last Nth played trick-play frame.  Only valid after a transition form
@@ -138,5 +165,13 @@ public interface TrickPlayControl {
      */
     enum TrickMode {
         FF1, FF2, FF3, NORMAL, FR1, FR2, FR3
+    }
+
+    /**
+     * Trick-play direction, fast play forward or reverse.  Or NONE for
+     * {@see TrickMode#NORMAL}.
+     */
+    enum TrickPlayDirection {
+        FORWARD, NONE, REVERSE
     }
 }

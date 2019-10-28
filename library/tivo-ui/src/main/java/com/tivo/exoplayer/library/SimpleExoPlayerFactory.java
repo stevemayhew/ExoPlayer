@@ -176,7 +176,7 @@ public class SimpleExoPlayerFactory implements
     if (player != null) {
       player.release();
       if (trickPlayControl != null) {
-        trickPlayControl.setPlayer(null);
+        trickPlayControl.removePlayerReference();
         trickPlayControl = null;
       }
       player = null;
