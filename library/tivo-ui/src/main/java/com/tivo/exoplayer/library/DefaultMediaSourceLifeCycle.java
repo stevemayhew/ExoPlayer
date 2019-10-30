@@ -50,15 +50,14 @@ public class DefaultMediaSourceLifeCycle implements MediaSourceLifeCycle {
   public void playUrl(Uri uri, boolean enableChunkless) {
     Log.d("ExoPlayer", "play URL " + uri);
 
-    player.stop();
     MediaSource mediaSource = buildMediaSource(uri, buildDataSourceFactory(), enableChunkless);
-
     playMediaSource(mediaSource);
   }
 
   protected void playMediaSource(MediaSource mediaSource) {
-    player.stop();
+    player.stop(true);
     currentMediaSource = mediaSource;
+    player.setPlayWhenReady(true);
     player.prepare(currentMediaSource);
   }
 

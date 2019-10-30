@@ -443,12 +443,9 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
    * @return next TrickMode to set
    */
   private static TrickPlayControl.TrickMode nextTrickMode(TrickPlayControl.TrickMode currentMode, int keyCode) {
-    TrickPlayControl.TrickMode value = TrickPlayControl.TrickMode.FF3;
+    TrickPlayControl.TrickMode value;
 
     switch (keyCode) {
-      case KeyEvent.KEYCODE_MEDIA_PLAY:
-        break;
-
       case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
         switch (currentMode) {
           case NORMAL:
@@ -460,7 +457,11 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
           case FF2:
             value = TrickPlayControl.TrickMode.FF3;
             break;
-          default:    // FF3 keeps going.
+          case FF3:    // FF3 keeps going in FF3
+            value = TrickPlayControl.TrickMode.FF3;
+            break;
+          default:    // FR mode with FF keypress goes back to normal
+            value = TrickPlayControl.TrickMode.NORMAL;
             break;
         }
         break;
@@ -476,10 +477,17 @@ public class ViewActivity extends AppCompatActivity implements PlayerControlView
           case FR2:
             value = TrickPlayControl.TrickMode.FR3;
             break;
-          default:    // FF3 keeps going.
+          case FR3:    // FR3 keeps going in FR3
+            value = TrickPlayControl.TrickMode.FR3;
+            break;
+          default:    // FF mode with REW keypress goes back to normal
+            value = TrickPlayControl.TrickMode.NORMAL;
             break;
         }
         break;
+
+        default:
+          throw new RuntimeException("nextTrickMode() must be on FF or REW button");
     }
 
     Log.d(TAG, "Trickplay in currentMode: " + currentMode + ", next is: " + value);

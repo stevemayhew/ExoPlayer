@@ -191,7 +191,6 @@ class TrickPlayController implements TrickPlayControlInternal {
     }
 
     private class PlayerEventListener implements AnalyticsListener {
-        private int lastPlaybackState = 0;
 
         @Override
         public void onPlayerStateChanged(EventTime eventTime, boolean playWhenReady, int playbackState) {
@@ -204,24 +203,23 @@ class TrickPlayController implements TrickPlayControlInternal {
                 case Player.STATE_IDLE:
                 case Player.STATE_ENDED:
                     isMetadataValid = false;
+                    resetTrickPlayState(true);
                     dispatchPlaylistMetadataChanged();
                     break;
-            }
 
-            TrickMode currentTrickMode = getCurrentTrickMode();
-            if (! eventTime.timeline.isEmpty() && currentTrickMode != TrickMode.NORMAL) {
-                Timeline.Window currentWindow = new Timeline.Window();
-                eventTime.timeline.getWindow(eventTime.windowIndex, currentWindow);
-                if (currentWindow.durationUs == C.TIME_UNSET) {
-                    Log.d(TAG, "state change to " + playbackState + " but durationUs not known");
-                } else {
-                    if (! isTrickModePossible(currentWindow, eventTime.currentPlaybackPositionMs, currentTrickMode)) {
-                        setTrickMode(TrickMode.NORMAL);
-                    }
-                }
+                case Player.STATE_BUFFERING:
+                case Player.STATE_READY:
+                    Timeline timeline = eventTime.timeline;
+                    exitTrickPlayIfTimelineExceeded(timeline);
+                    break;
             }
+        }
 
-            lastPlaybackState = playbackState;
+        @Override
+        public void onTimelineChanged(EventTime eventTime, int reason) {
+            if (reason == Player.TIMELINE_CHANGE_REASON_DYNAMIC) {
+
+            }
         }
 
         @Override
@@ -308,12 +306,11 @@ class TrickPlayController implements TrickPlayControlInternal {
             TrickMode currentTrickMode = getCurrentTrickMode();
 
             /* if time to exit trick-play reached seek boundry, then switch to normal and discard this last message */
-            boolean timeToExit = ! canTrickPlayInMode(currentTrickMode);
-            if (timeToExit) {
+            boolean didExitTrickPlay = exitTrickPlayIfTimelineExceeded(player.getCurrentTimeline());
+            if (didExitTrickPlay) {
                 Log.d(TAG, "End seek-based trickplay, reached seek boundry.  mode: " + currentTrickMode + " at media time " + player.getCurrentPosition());
 
                 lastRenderTime = null;
-                switchTrickModeToNormal(currentTrickMode);
             } else if (currentTrickMode != TrickMode.NORMAL) {
 
                 boolean isMinFrameRate = true;
@@ -327,7 +324,8 @@ class TrickPlayController implements TrickPlayControlInternal {
                 switch (msg.what) {
                     case MSG_TRICKPLAY_STARTSEEK:
                         long contentPosition = player.getContentPosition();
-                        seekTargetMs = Math.min(C.usToMs(currentMediaClock.getPositionUs()), getLargestSafeSeekPositionMs());
+                        long largestSafeSeekPositionMs = getLargestSafeSeekPositionMs();
+                        seekTargetMs = Math.min(C.usToMs(currentMediaClock.getPositionUs()), largestSafeSeekPositionMs);
 
                         Log.d(TAG, "handleMessage STARTSEEK - mode " + currentTrickMode + " position: "
                             + contentPosition + " request position " + seekTargetMs + " timeSinceLastRender: " + timeSinceLastRender + " delta: " + (
@@ -352,7 +350,6 @@ class TrickPlayController implements TrickPlayControlInternal {
                         if (isNoPendingSeek) {
                             sendEmptyMessage(MSG_TRICKPLAY_STARTSEEK);
                         }
-
                         break;
 
                 }
@@ -477,8 +474,6 @@ class TrickPlayController implements TrickPlayControlInternal {
                 Log.d(TAG, "setTrickMode(" + newMode + ") pausing playback - previous mode: " + previousMode);
                 player.setPlayWhenReady(false);
 
-                setCurrentTrickMode(newMode);
-
                 if (newMode == TrickMode.NORMAL) {
                     lastRendersCount = switchTrickModeToNormal(previousMode);
                 } else {
@@ -547,6 +542,7 @@ class TrickPlayController implements TrickPlayControlInternal {
             switchToTrickPlayTracks();
             startSeekBasedTrickplay();
         }
+        setCurrentTrickMode(newMode);
 
         dispatchTrickModeChanged(newMode, previousMode);
 
@@ -564,12 +560,11 @@ class TrickPlayController implements TrickPlayControlInternal {
      */
     private int switchTrickModeToNormal(TrickMode previousMode) {
         int lastRendersCount = 0;
-        stopSeekBasedTrickplay();
-        player.setPlaybackParameters(PlaybackParameters.DEFAULT);
 
         long currentPosition = player.getCurrentPosition();
+        Log.d(TAG, "Stop trickplay at media time " + currentPosition + " parameters: " + player.getPlaybackParameters().speed + " prev mode: "+ previousMode);
 
-        Log.d(TAG, "Stop trickplay at media time " + currentPosition + " parameters: " + player.getPlaybackParameters().speed);
+        resetTrickPlayState(false);
 
         enableLastSelectedAudioTrack();
         player.setPlayWhenReady(true);
@@ -585,10 +580,34 @@ class TrickPlayController implements TrickPlayControlInternal {
                 player.seekTo(positionMs);
             }
         }
+        Log.d(TAG, "Trickplay stopped - media time: " + currentPosition + " parameters: " + player.getPlaybackParameters().speed + " prev mode: "+ previousMode);
 
         dispatchTrickModeChanged(TrickMode.NORMAL, previousMode);
 
         return lastRendersCount;
+    }
+
+    /**
+     * Reset any player state changes an the current trick mode to initial values.
+     *
+     * This is called when the player is stopped or whenever we want to return to normal playback
+     * state (eg via {@link #switchTrickModeToNormal(TrickMode)}).
+     *
+     * When this method returns the player will remain stopped if it was, only the trickplay
+     * state to normal and playback parameter changes are made.
+     *
+     * @param dispatchEvent - set to true to dispatch the trickmode changed event
+     */
+    private void resetTrickPlayState(boolean dispatchEvent) {
+        stopSeekBasedTrickplay();
+        player.setSeekParameters(SeekParameters.DEFAULT);
+        player.setPlaybackParameters(PlaybackParameters.DEFAULT);
+        TrickMode prevMode = getCurrentTrickMode();
+        setCurrentTrickMode(TrickMode.NORMAL);
+        Log.d(TAG, "resetTrickPlayState("+ dispatchEvent + ") - speed: " + player.getPlaybackParameters().speed + " prev mode: " + prevMode);
+        if (dispatchEvent && prevMode != TrickMode.NORMAL) {
+            dispatchTrickModeChanged(TrickMode.NORMAL, prevMode);
+        }
     }
 
     /**
@@ -673,16 +692,23 @@ class TrickPlayController implements TrickPlayControlInternal {
         return  direction;
     }
 
-    private static boolean modeIsTrickForward(TrickMode mode) {
-        return directionForMode(mode) == TrickPlayControl.TrickPlayDirection.FORWARD;
-    }
-
     private synchronized void setCurrentTrickMode(TrickMode mode) {
         currentTrickMode = mode;
     }
 
 
-    boolean canTrickPlayInMode(TrickMode newMode) {
+    /**
+     * Check if we are not so close to the current timeline ({@link Player#getCurrentTimeline()}
+     * boundaries as to prevent starting trick play in the mode.
+     *
+     * This check is equivalent to {@link #exitTrickPlayIfTimelineExceeded(Timeline)}, that is this
+     * method returns false if {@link #exitTrickPlayIfTimelineExceeded(Timeline)} would exit to
+     * normal mode.
+     *
+     * @param requestedMode trick play mode to check if the current timeline will allow starting it.
+     * @return true if trick play in the requested mode is possible
+     */
+    private boolean canTrickPlayInMode(TrickMode requestedMode) {
         boolean modeChangePossible = player != null;
         if (modeChangePossible) {
             Timeline timeline = player.getCurrentTimeline();
@@ -690,8 +716,8 @@ class TrickPlayController implements TrickPlayControlInternal {
                 Timeline.Window currentWindow = new Timeline.Window();
                 timeline.getWindow(player.getCurrentWindowIndex(), currentWindow);
                 if (currentWindow.durationUs != C.TIME_UNSET) {
-                    modeChangePossible = isTrickModePossible(currentWindow,
-                        player.getCurrentPosition(), newMode);
+                    modeChangePossible =
+                        canContinuePlaybackInMode(currentWindow, player.getCurrentPosition(), requestedMode);
                 }
             }
         }
@@ -699,15 +725,36 @@ class TrickPlayController implements TrickPlayControlInternal {
     }
 
     /**
+     * Exit trick-play (back to normal mode) if the current position exceeds the timeline
+     * This uses {@link #canContinuePlaybackInMode(Timeline.Window, long, TrickMode)}
+     *
+     * @param timeline {@link Timeline} to check if position in in seekable bounds for
+     */
+    private boolean exitTrickPlayIfTimelineExceeded(Timeline timeline) {
+        boolean didExit = false;
+        TrickMode currentTrickMode = getCurrentTrickMode();
+        if (! timeline.isEmpty() && currentTrickMode != TrickMode.NORMAL) {
+            Timeline.Window currentWindow = new Timeline.Window();
+            timeline.getWindow(player.getCurrentWindowIndex(), currentWindow);
+            if (! canContinuePlaybackInMode(currentWindow, player.getContentPosition(), currentTrickMode)) {
+                switchTrickModeToNormal(currentTrickMode);
+                didExit = true;
+            }
+        }
+        return didExit;
+    }
+
+    /**
      * Checks if trick-play mode requested (requestedMode) is possible to start (or can
-     * continue) based on the current playback position in the timeline.
+     * continue) based on the current playback position in the timeline and the trick
+     * play speed.
      *
      * @param currentWindow - current playing Timeline.Window to check seek boundries on
      * @param playbackPositionMs - current playback position, checked against the window
      * @param requestedMode - the mode to check if trick-play can start (continue) in
      * @return true if trick-play in the 'requestedMode' is possible.
      */
-    private static boolean isTrickModePossible(Timeline.Window currentWindow,
+    private boolean canContinuePlaybackInMode(Timeline.Window currentWindow,
         long playbackPositionMs,
         TrickMode requestedMode) {
         boolean isPossible = true;
@@ -726,7 +773,8 @@ class TrickPlayController implements TrickPlayControlInternal {
         TrickPlayDirection direction = directionForMode(requestedMode);
         switch (direction) {
             case FORWARD:
-                isPossible = (playbackPositionMs - lastSeekablePosition) <= 3000;
+                int tolerance = (int) (100 * getSpeedFor(requestedMode));
+                isPossible = (lastSeekablePosition - playbackPositionMs) >= tolerance;
                 break;
 
             case REVERSE:
@@ -757,6 +805,7 @@ class TrickPlayController implements TrickPlayControlInternal {
             currentHandler = null;
         }
         player.setSeekParameters(SeekParameters.DEFAULT);
+        player.setPlaybackParameters(PlaybackParameters.DEFAULT);
     }
 
     private void startSeekBasedTrickplay() {
