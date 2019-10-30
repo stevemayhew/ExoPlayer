@@ -600,6 +600,8 @@ class TrickPlayController implements TrickPlayControlInternal {
      */
     private void resetTrickPlayState(boolean dispatchEvent) {
         stopSeekBasedTrickplay();
+        player.setSeekParameters(SeekParameters.DEFAULT);
+        player.setPlaybackParameters(PlaybackParameters.DEFAULT);
         TrickMode prevMode = getCurrentTrickMode();
         setCurrentTrickMode(TrickMode.NORMAL);
         Log.d(TAG, "resetTrickPlayState("+ dispatchEvent + ") - speed: " + player.getPlaybackParameters().speed + " prev mode: " + prevMode);
@@ -803,6 +805,7 @@ class TrickPlayController implements TrickPlayControlInternal {
             currentHandler = null;
         }
         player.setSeekParameters(SeekParameters.DEFAULT);
+        player.setPlaybackParameters(PlaybackParameters.DEFAULT);
     }
 
     private void startSeekBasedTrickplay() {
